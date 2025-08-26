@@ -1,0 +1,6 @@
+__pycache__
+.env
+runs
+venv/
+runs/
+command.txt

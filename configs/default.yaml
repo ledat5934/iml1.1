@@ -1,0 +1,48 @@
+pipeline_timeout: 7200
+per_execution_timeout: 7200
+
+# Data Perception
+max_file_group_size_to_show: 5
+num_example_files_to_show: 1
+
+max_chars_per_file: 1024
+num_tutorial_retrievals: 30
+max_num_tutorials: 5
+max_user_input_length: 2048
+max_error_message_length: 2048
+max_tutorial_length: 32768
+create_venv: false
+condense_tutorials: True
+use_tutorial_summary: True
+
+# Debug
+verbosity: 4
+
+# Default LLM Configuration
+# For each agent (coder, etc.) you can use a different one
+llm: &default_llm
+  provider: gemini
+  model: gemini-2.5-flash
+  max_tokens: 16384
+  proxy_url: null
+  temperature: 0.0
+  top_p: 0.9
+  verbose: True
+  multi_turn: False
+  template: null
+  add_coding_format_instruction: false
+
+description_analyzer:
+  <<: *default_llm
+
+guideline_generator:
+  <<: *default_llm
+
+preprocessing_coder:
+  <<: *default_llm
+
+modeling_coder:
+  <<: *default_llm
+
+assembler:
+  <<: *default_llm
