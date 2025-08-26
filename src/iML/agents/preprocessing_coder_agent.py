@@ -68,9 +68,11 @@ class PreprocessingCoderAgent(BaseAgent):
                 return {"status": "success", "code": code_to_execute}
             else:
                 error_message = execution_result["stderr"]
-                logger.warning(f"Code execution failed on attempt {attempt + 1}. Error: {error_message}")
+                last_10_lines = error_message.split('\n')[-10:]
+                error_to_log = '\n'.join(last_10_lines)
+                logger.warning(f"Code execution failed on attempt {attempt + 1}. Error: {error_to_log}")
                 self.manager.save_and_log_states(
-                    f"---ATTEMPT {attempt+1}---\nCODE:\n{code_to_execute}\n\nERROR:\n{error_message}",
+                    f"---ATTEMPT {attempt+1}---\nCODE:\n{code_to_execute}\n\nERROR:\n{error_to_log}",
                     f"preprocessing_attempt_{attempt+1}_failed.log"
                 )
 

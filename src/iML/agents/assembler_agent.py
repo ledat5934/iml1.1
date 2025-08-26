@@ -79,9 +79,11 @@ class AssemblerAgent(BaseAgent):
                 return {"status": "success", "code": final_code, "submission_path": submission_path}
             else:
                 error_message = execution_result["stderr"]
+                last_10_lines = error_message.split('\n')[-10:]
+                error_to_log = '\n'.join(last_10_lines)
                 logger.warning(f"Code execution failed on attempt {attempt + 1}. Error: {error_message}")
                 self.manager.save_and_log_states(
-                    f"---ATTEMPT {attempt+1}---\nCODE:\n{final_code}\n\nERROR:\n{error_message}",
+                    f"---ATTEMPT {attempt+1}---\nCODE:\n{final_code}\n\nERROR:\n{error_to_log}",
                     f"assembler_attempt_{attempt+1}_failed.log"
                 )
                 # Update combined_code so next iteration LLM will fix the latest error version
