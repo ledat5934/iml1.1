@@ -40,20 +40,25 @@ class GuidelineAgent(BaseAgent):
         self.manager.log_agent_start("GuidelineAgent: Starting guideline generation...")
 
         description_analysis = self.manager.description_analysis
-        profiling_result = self.manager.profiling_result
+        # Prefer summarized profiling to avoid noise; fallback to raw if missing
+        profiling_result = getattr(self.manager, "profiling_summary", None)
+        if not profiling_result:
+            profiling_result = getattr(self.manager, "profiling_result", None)
 
         if not description_analysis or "error" in description_analysis:
             logger.error("GuidelineAgent: description_analysis is missing.")
             return {"error": "description_analysis not available."}
         
         if not profiling_result or "error" in profiling_result:
-            logger.error("GuidelineAgent: profiling_result is missing.")
+            logger.error("GuidelineAgent: profiling summary/result is missing.")
             return {"error": "profiling_result not available."}
 
-        # Build prompt
+        # Build prompt with model suggestions if available
+        model_suggestions = getattr(self.manager, "model_suggestions", None)
         prompt = self.prompt_handler.build(
             description_analysis=description_analysis,
-            profiling_result=profiling_result
+            profiling_result=profiling_result,
+            model_suggestions=model_suggestions,
         )
 
         # Call LLM

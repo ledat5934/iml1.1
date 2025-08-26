@@ -8,6 +8,8 @@ from typing import List
 from ..agents import (
     DescriptionAnalyzerAgent,
     ProfilingAgent,
+    ProfilingSummarizerAgent,
+    ModelRetrieverAgent,
     GuidelineAgent,
     PreprocessingCoderAgent,
     ModelingCoderAgent,
@@ -54,6 +56,15 @@ class Manager:
             llm_config=self.config.description_analyzer,
         )
         self.profiling_agent = ProfilingAgent(
+            config=config,
+            manager=self,
+        )
+        self.profiling_summarizer_agent = ProfilingSummarizerAgent(
+            config=config,
+            manager=self,
+            llm_config=self.config.profiling_summarizer,
+        )
+        self.model_retriever_agent = ModelRetrieverAgent(
             config=config,
             manager=self,
         )
@@ -115,6 +126,18 @@ class Manager:
         logger.info("Profiling overview generated.")
 
         # Step 3: Run guideline agent
+        # 3a: Summarize profiling via LLM to reduce noise
+        profiling_summary = self.profiling_summarizer_agent()
+        if "error" in profiling_summary:
+            logger.error(f"Profiling summarization failed: {profiling_summary['error']}")
+            return
+        self.profiling_summary = profiling_summary
+
+        # 3b: Retrieve pretrained model/embedding suggestions
+        model_suggestions = self.model_retriever_agent()
+        self.model_suggestions = model_suggestions
+
+        # 3c: Run guideline agent with summarized profiling + model suggestions
         guideline = self.guideline_agent()
         if "error" in guideline:
             logger.error(f"Guideline generation failed: {guideline['error']}")

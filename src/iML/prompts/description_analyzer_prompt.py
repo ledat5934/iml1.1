@@ -15,8 +15,9 @@ Extract the following information:
 - "input_data": A description of the primary input data for the model.
 - "output_data": A description of the expected output format from the model.
 - "task": A summary of the main objective or task of the competition.
+- "task_type": One of ["text_classification","image_classification","tabular_classification","tabular_regression","seq2seq","ner","qa","unknown"] inferred from the description and directory structure.
 - "data file description": A dictionary where the keys are relative path to the file (e.g., "train.csv", "test/test.csv") and the values are their descriptions.
-- "link to the dataset": A list containing the filenames and folders of the core data files (like train, test, sample submission). Do NOT invent or guess full paths.
+- "link to the dataset": A list containing the filenames and folders of the core data files (like train, test, sample submission). Do NOT invent or guess full paths. Return the relative path from the input_data_folder only, do not contain the input_data_folder dir.
 ## EXAMPLE:
 ### INPUT TEXT:
 
@@ -31,6 +32,7 @@ Welcome to the 'Paddy Disease Classification' challenge! The goal is to classify
     "input_data": "The input data consists of images of rice plants (JPG files).",
     "output_data": "The model should output a class label corresponding to one of ten possible diseases.",
     "task": "The main goal is to build a model that can classify diseases in rice paddy images.",
+    "task_type": "image_classification",
     "data file description": {{
         "train.csv": "Maps image IDs to their respective disease labels.",
         "train_images": "A folder containing the training images as JPG files.",
@@ -74,7 +76,12 @@ Welcome to the 'Paddy Disease Classification' challenge! The goal is to classify
             clean_response = response.strip().replace("```json", "").replace("```", "")
             parsed_response = json.loads(clean_response)
         except json.JSONDecodeError as e:
-            self.manager.logger.error(f"Failed to parse JSON from LLM response: {e}")
+            # dùng logging toàn cục nếu bạn đã bỏ self.manager.logger
+            try:
+                import logging
+                logging.error(f"Failed to parse JSON from LLM response: {e}")
+            except Exception:
+                pass
             parsed_response = {"error": "Invalid JSON response from LLM", "raw_response": response}
 
         # Process additional full path if available

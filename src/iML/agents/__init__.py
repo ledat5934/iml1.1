@@ -7,6 +7,8 @@ from .guideline_agent import GuidelineAgent
 from .preprocessing_coder_agent import PreprocessingCoderAgent
 from .modeling_coder_agent import ModelingCoderAgent
 from .assembler_agent import AssemblerAgent
+from .profiling_summarizer_agent import ProfilingSummarizerAgent
+from .model_retriever_agent import ModelRetrieverAgent
 
 __all__ = [
     "BaseAgent",
@@ -16,4 +18,6 @@ __all__ = [
     "PreprocessingCoderAgent",
     "ModelingCoderAgent",
     "AssemblerAgent",
+    "ProfilingSummarizerAgent",
+    "ModelRetrieverAgent",
 ]

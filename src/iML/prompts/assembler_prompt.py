@@ -56,6 +56,7 @@ The code above failed with the following error.
 1.  Analyze the error message and the original code carefully.
 2.  Fix the specific issue that caused the error.
 3.  Generate a new, complete, and corrected version of the Python code that resolves the issue and meets all requirements.
+4.  If the error indicates a missing module (ModuleNotFoundError/ImportError), modify the final script to wrap critical imports in try/except and, in the except, call subprocess to install the missing package (e.g., `[sys.executable, '-m', 'pip', 'install', '<package>']` with `check=True`), then attempt the import again before proceeding.
 """
         
         prompt = self.template.format(

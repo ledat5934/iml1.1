@@ -68,6 +68,11 @@ Before generating the final JSON, consider:
 4. If using pretrained models, choose the most appropriate ones.
 5. Compile these specific actions into the required JSON format.
 
+## Pretrained Models & Embedding Options (from Hugging Face):
+```json
+{model_suggestions_str}
+```
+
 Output Format: Your response must be in the JSON format below:
 Provide your response in JSON format. An empty list or null is acceptable for recommendations if not applicable.
 
@@ -103,41 +108,101 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
     }}
 }}"""
 
-    def build(self, description_analysis: Dict[str, Any], profiling_result: Dict[str, Any]) -> str:
-        """Build prompt from analysis and profiling results."""
+    def build(self, description_analysis: Dict[str, Any], profiling_result: Dict[str, Any], model_suggestions: Dict[str, Any] | None = None) -> str:
+        """Build prompt from analysis and profiling results.
+
+        Supports two formats:
+        - Summarized profiling (preferred): keys include 'files', 'label_analysis', 'feature_quality'.
+        - Raw profiling (fallback): keys include 'summaries', 'profiles'.
+        """
         task_info = description_analysis
-        
-        # Find key of train file in profiling results
-        train_key = None
-        for key in profiling_result.get('summaries', {}).keys():
-            if 'test' not in key.lower() and 'submission' not in key.lower():
-                train_key = key
-                break
-        
-        if not train_key:
-             # If not found, take the first key as default
-            train_key = next(iter(profiling_result.get('summaries', {})), None)
 
-        train_summary = profiling_result.get('summaries', {}).get(train_key, {})
-        train_profile = profiling_result.get('profiles', {}).get(train_key, {})
-
-        n_rows = train_summary.get('n_rows', 0)
-        n_cols = train_summary.get('n_cols', 0)
-        alerts = train_profile.get('alerts', [])
-        variables = train_profile.get('variables', {})
-        variables_summary_str = json.dumps(_create_variables_summary(variables), indent=2, ensure_ascii=False)
         dataset_name = task_info.get('name', 'N/A')
         task_desc = task_info.get('task', 'N/A')
         output_data = task_info.get('output_data', 'N/A')
+
+        n_rows = 0
+        n_cols = 0
+        alerts_out = []
+        variables_summary_dict = {}
+
+        if 'label_analysis' in profiling_result or 'files' in profiling_result:
+            # Summarized format
+            files = profiling_result.get('files', []) or []
+            # choose train-like file if present
+            chosen = None
+            for f in files:
+                name = (f.get('name') or '').lower()
+                if 'train' in name and 'test' not in name and 'submission' not in name:
+                    chosen = f
+                    break
+            if not chosen and files:
+                chosen = files[0]
+            if chosen:
+                n_rows = chosen.get('n_rows', 0) or 0
+                n_cols = chosen.get('n_cols', 0) or 0
+
+            la = profiling_result.get('label_analysis', {}) or {}
+            fq = profiling_result.get('feature_quality', {}) or {}
+
+            # alerts: concise messages
+            if la:
+                if la.get('has_label_column') is False:
+                    alerts_out.append('No label column detected')
+                if la.get('has_missing_labels'):
+                    alerts_out.append('Missing labels present')
+                imb = la.get('class_distribution_imbalance')
+                if imb and imb != 'none':
+                    alerts_out.append(f'label imbalance: {imb}')
+                if la.get('num_classes'):
+                    alerts_out.append(f"num_classes={la['num_classes']}")
+
+            if fq:
+                hm = fq.get('high_missing_columns') or []
+                if hm:
+                    alerts_out.append(f"high-missing cols: {len(hm)}")
+                hc = fq.get('high_cardinality_categoricals') or []
+                if hc:
+                    alerts_out.append(f"high-cardinality cats: {len(hc)}")
+
+            # variables summary minimal to avoid noise
+            variables_summary_dict = {
+                'high_missing_columns': fq.get('high_missing_columns') or [],
+                'high_cardinality_categoricals': fq.get('high_cardinality_categoricals') or [],
+                'date_like_cols': fq.get('date_like_cols') or [],
+                'label_column': la.get('label_column'),
+            }
+        else:
+            # Fallback to raw profiling (legacy)
+            train_key = None
+            for key in profiling_result.get('summaries', {}).keys():
+                if 'test' not in key.lower() and 'submission' not in key.lower():
+                    train_key = key
+                    break
+            if not train_key:
+                train_key = next(iter(profiling_result.get('summaries', {})), None)
+
+            train_summary = profiling_result.get('summaries', {}).get(train_key, {})
+            train_profile = profiling_result.get('profiles', {}).get(train_key, {})
+            n_rows = train_summary.get('n_rows', 0)
+            n_cols = train_summary.get('n_cols', 0)
+            alerts = train_profile.get('alerts', [])
+            variables = train_profile.get('variables', {})
+            alerts_out = alerts[:3] if alerts else []
+            variables_summary_dict = _create_variables_summary(variables)
+
+        variables_summary_str = json.dumps(variables_summary_dict, indent=2, ensure_ascii=False)
+        model_suggestions_str = json.dumps(model_suggestions or {}, indent=2, ensure_ascii=False)
 
         prompt = self.template.format(
             dataset_name=dataset_name,
             task_desc=task_desc,
             n_rows=n_rows,
             n_cols=n_cols,
-            alerts=alerts[:3] if alerts else 'None',
+            alerts=alerts_out if alerts_out else 'None',
             variables_summary_str=variables_summary_str,
-            output_data=output_data
+            output_data=output_data,
+            model_suggestions_str=model_suggestions_str
         )
         
         self.manager.save_and_log_states(prompt, "guideline_prompt.txt")
