@@ -124,6 +124,7 @@ The previously generated code failed with an error.
 1. Analyze the error message and the previous code carefully.
 2. Generate a new, complete, and corrected version of the Python code that resolves the issue.
 3. Ensure the corrected code adheres to all the original requirements.
+4. If the error indicates missing modules (ModuleNotFoundError/ImportError), wrap imports in try/except and, in the except block, use subprocess to install the missing package (e.g., `[sys.executable, '-m', 'pip', 'install', '<package>']` with `check=True`), then retry the import.
 
 Generate the corrected Python code:
 """

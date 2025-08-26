@@ -19,7 +19,6 @@ use_tutorial_summary: True
 verbosity: 4
 
 # Default LLM Configuration
-# For each agent (coder, etc.) you can use a different one
 llm: &default_llm
   provider: gemini
   model: gemini-2.5-flash
@@ -33,6 +32,9 @@ llm: &default_llm
   add_coding_format_instruction: false
 
 description_analyzer:
+  <<: *default_llm
+
+profiling_summarizer:
   <<: *default_llm
 
 guideline_generator:
