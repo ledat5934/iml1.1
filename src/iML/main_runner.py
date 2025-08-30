@@ -22,9 +22,17 @@ def timeout_handler(signum, frame):
     logger.error("Pipeline execution timed out.")
     raise PipelineTimeoutError("Pipeline execution exceeded the time limit.")
 
-def run_automl_pipeline(input_data_folder: str, output_folder: str = None, config_path: str = "configs/default.yaml"):
+def run_automl_pipeline(input_data_folder: str, output_folder: str = None, config_path: str = "configs/default.yaml", checkpoint_mode: str = "full", checkpoint_action: str = "run"):
     """
     Main function to set up the environment and run the entire pipeline.
+    
+    Args:
+        input_data_folder: Path to input data directory
+        output_folder: Path to output directory (auto-generated if None)
+        config_path: Path to configuration file
+        checkpoint_mode: "full" (complete run), "partial" (stop at checkpoint), or "resume" (continue from checkpoint)
+        checkpoint_action: When partial mode - where to stop ("guideline", "profiling", "description")
+                          When resume mode - where to start ("preprocessing", "modeling", "assembler")
     """
     # 1. Create the output directory if one is not provided
     if output_folder is None:
@@ -68,8 +76,22 @@ def run_automl_pipeline(input_data_folder: str, output_folder: str = None, confi
             config=config,
         )
 
-        # 5. Start the pipeline run
-        manager.run_pipeline()
+        # 5. Start the pipeline run based on checkpoint mode
+        if checkpoint_mode == "full":
+            manager.run_pipeline()
+        elif checkpoint_mode == "partial":
+            success = manager.run_pipeline_partial(stop_after=checkpoint_action)
+            if success:
+                logger.info(f"Pipeline stopped successfully after {checkpoint_action} stage.")
+                logger.info("To continue, run with --checkpoint-mode resume --checkpoint-action preprocessing")
+            else:
+                logger.error("Partial pipeline execution failed.")
+        elif checkpoint_mode == "resume":
+            success = manager.resume_pipeline_from_checkpoint(start_from=checkpoint_action)
+            if not success:
+                logger.error("Resume pipeline execution failed.")
+        else:
+            logger.error(f"Invalid checkpoint_mode: {checkpoint_mode}. Use 'full', 'partial', or 'resume'.")
 
     except PipelineTimeoutError as e:
         logger.error(f"Pipeline stopped due to timeout: {e}")

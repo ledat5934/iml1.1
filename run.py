@@ -30,6 +30,17 @@ def main():
         default="configs/default.yaml", 
         help="Path to the configuration file (default: configs/default.yaml)"
     )
+    parser.add_argument(
+        "--checkpoint-mode",
+        choices=["full", "partial", "resume"],
+        default="full",
+        help="Pipeline execution mode: 'full' (complete run), 'partial' (stop at checkpoint), 'resume' (continue from checkpoint)"
+    )
+    parser.add_argument(
+        "--checkpoint-action",
+        default="guideline",
+        help="For partial mode: where to stop ('description', 'profiling', 'guideline'). For resume mode: where to start ('preprocessing', 'modeling', 'assembler')"
+    )
     
     args = parser.parse_args()
     
@@ -38,6 +49,8 @@ def main():
         input_data_folder=args.input,
         output_folder=args.output,
         config_path=args.config,
+        checkpoint_mode=args.checkpoint_mode,
+        checkpoint_action=args.checkpoint_action,
     )
 
 if __name__ == "__main__":

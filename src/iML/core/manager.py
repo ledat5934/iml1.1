@@ -95,14 +95,147 @@ class Manager:
             
         }
 
-    def run_pipeline_new(self):
-        """Run the entire pipeline from description analysis to code generation."""
-        logger.info("Starting AutoML pipeline...")
+    def run_pipeline_partial(self, stop_after="guideline"):
+        """Run pipeline up to a specific checkpoint."""
+        logger.info(f"Starting partial AutoML pipeline (stop after: {stop_after})...")
 
+        # Step 1: Run description analysis agent
+        analysis_result = self.description_analyzer_agent()
+        if "error" in analysis_result:
+            logger.error(f"Description analysis failed: {analysis_result['error']}")
+            return False
+        logger.info(f"Analysis result: {analysis_result}")
+        self.description_analysis = analysis_result
+
+        if stop_after == "description":
+            logger.info("Pipeline stopped after description analysis.")
+            return True
+
+        # Step 2: Run profiling agent
+        profiling_result = self.profiling_agent()
+        if "error" in profiling_result:
+            logger.error(f"Data profiling failed: {profiling_result['error']}")
+            return False
+        self.profiling_result = profiling_result
+        logger.info("Profiling overview generated.")
+
+        if stop_after == "profiling":
+            logger.info("Pipeline stopped after profiling.")
+            return True
+
+        # Step 3a: Summarize profiling via LLM
+        profiling_summary = self.profiling_summarizer_agent()
+        if "error" in profiling_summary:
+            logger.error(f"Profiling summarization failed: {profiling_summary['error']}")
+            return False
+        self.profiling_summary = profiling_summary
+
+        # Step 3b: Retrieve pretrained model suggestions
+        model_suggestions = self.model_retriever_agent()
+        self.model_suggestions = model_suggestions
+
+        # Step 3c: Run guideline agent
+        guideline = self.guideline_agent()
+        if "error" in guideline:
+            logger.error(f"Guideline generation failed: {guideline['error']}")
+            return False
+        self.guideline = guideline
+        logger.info("Guideline generated successfully.")
+
+        if stop_after == "guideline":
+            logger.info("Pipeline stopped after guideline generation.")
+            logger.info("You can now manually edit the guideline in the states folder.")
+            return True
+
+        logger.info("Partial AutoML pipeline completed successfully!")
+        return True
+
+    def load_checkpoint_state(self):
+        """Load previously saved checkpoint state."""
+        import json
+        import os
         
+        states_dir = os.path.join(self.output_folder, "states")
+        
+        # Load description analysis
+        desc_file = os.path.join(states_dir, "description_analyzer_parsed_response.json")
+        if os.path.exists(desc_file):
+            with open(desc_file, 'r', encoding='utf-8') as f:
+                self.description_analysis = json.load(f)
+            logger.info("Loaded description analysis from checkpoint")
+        
+        # Load profiling result
+        prof_file = os.path.join(states_dir, "profiling_result.json")
+        if os.path.exists(prof_file):
+            with open(prof_file, 'r', encoding='utf-8') as f:
+                self.profiling_result = json.load(f)
+            logger.info("Loaded profiling result from checkpoint")
+        
+        # Load profiling summary
+        prof_sum_file = os.path.join(states_dir, "profiling_summarizer_parsed_response.json")
+        if os.path.exists(prof_sum_file):
+            with open(prof_sum_file, 'r', encoding='utf-8') as f:
+                self.profiling_summary = json.load(f)
+            logger.info("Loaded profiling summary from checkpoint")
+        
+        # Load model suggestions
+        model_file = os.path.join(states_dir, "model_retrieval.json")
+        if os.path.exists(model_file):
+            with open(model_file, 'r', encoding='utf-8') as f:
+                self.model_suggestions = json.load(f)
+            logger.info("Loaded model suggestions from checkpoint")
+        
+        # Load guideline (might be manually edited)
+        guideline_file = os.path.join(states_dir, "guideline_agent_parsed_response.json")
+        if os.path.exists(guideline_file):
+            with open(guideline_file, 'r', encoding='utf-8') as f:
+                self.guideline = json.load(f)
+            logger.info("Loaded guideline from checkpoint")
 
+    def resume_pipeline_from_checkpoint(self, start_from="preprocessing"):
+        """Resume pipeline from a specific checkpoint."""
+        logger.info(f"Resuming AutoML pipeline from: {start_from}...")
+        
+        # Load previous state
+        self.load_checkpoint_state()
+        
+        # Validate required states are loaded
+        if not hasattr(self, 'description_analysis'):
+            logger.error("Cannot resume: description_analysis not found")
+            return False
+        if not hasattr(self, 'guideline'):
+            logger.error("Cannot resume: guideline not found")
+            return False
+
+        if start_from == "preprocessing":
+            # Step 4: Run Preprocessing Coder Agent
+            preprocessing_code_result = self.preprocessing_coder_agent()
+            if preprocessing_code_result.get("status") == "failed":
+                logger.error(f"Preprocessing code generation failed: {preprocessing_code_result.get('error')}")
+                return False
+            self.preprocessing_code = preprocessing_code_result.get("code")
+            logger.info("Preprocessing code generated and validated successfully.")
+
+        if start_from in ["preprocessing", "modeling"]:
+            # Step 5: Run Modeling Coder Agent
+            modeling_code_result = self.modeling_coder_agent()
+            if modeling_code_result.get("status") == "failed":
+                logger.error(f"Modeling code generation failed: {modeling_code_result.get('error')}")
+                return False
+            self.modeling_code = modeling_code_result.get("code")
+            logger.info("Modeling code generated successfully.")
+
+        if start_from in ["preprocessing", "modeling", "assembler"]:
+            # Step 6: Run Assembler Agent
+            assembler_result = self.assembler_agent()
+            if assembler_result.get("status") == "failed":
+                logger.error(f"Final code assembly and execution failed: {assembler_result.get('error')}")
+                return False
+            self.assembled_code = assembler_result.get("code")
+            logger.info("Initial script generated and executed successfully.")
 
         logger.info("AutoML pipeline completed successfully!")
+        return True
 
     def run_pipeline(self):
         """Run the entire pipeline from description analysis to code generation."""
