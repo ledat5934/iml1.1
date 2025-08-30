@@ -164,12 +164,27 @@ class Manager:
         
         states_dir = os.path.join(self.output_folder, "states")
         
+        # Debug: List all files in states directory
+        if os.path.exists(states_dir):
+            files_in_states = os.listdir(states_dir)
+            logger.info(f"Files found in states directory: {files_in_states}")
+        else:
+            logger.warning(f"States directory does not exist: {states_dir}")
+            return
+        
         # Load description analysis
-        desc_file = os.path.join(states_dir, "description_analyzer_parsed_response.json")
+        desc_file = os.path.join(states_dir, "description_analyzer_response.json")
         if os.path.exists(desc_file):
-            with open(desc_file, 'r', encoding='utf-8') as f:
-                self.description_analysis = json.load(f)
-            logger.info("Loaded description analysis from checkpoint")
+            try:
+                with open(desc_file, 'r', encoding='utf-8') as f:
+                    self.description_analysis = json.load(f)
+                logger.info("Loaded description analysis from checkpoint")
+            except Exception as e:
+                logger.error(f"Failed to load description analysis: {e}")
+        else:
+            logger.warning(f"Description analysis file not found: {desc_file}")
+            # Initialize as None so we can check later
+            self.description_analysis = None
         
         # Load profiling result
         prof_file = os.path.join(states_dir, "profiling_result.json")
@@ -178,8 +193,8 @@ class Manager:
                 self.profiling_result = json.load(f)
             logger.info("Loaded profiling result from checkpoint")
         
-        # Load profiling summary
-        prof_sum_file = os.path.join(states_dir, "profiling_summarizer_parsed_response.json")
+        # Load profiling summary  
+        prof_sum_file = os.path.join(states_dir, "profiling_summary.json")
         if os.path.exists(prof_sum_file):
             with open(prof_sum_file, 'r', encoding='utf-8') as f:
                 self.profiling_summary = json.load(f)
@@ -193,7 +208,7 @@ class Manager:
             logger.info("Loaded model suggestions from checkpoint")
         
         # Load guideline (might be manually edited)
-        guideline_file = os.path.join(states_dir, "guideline_agent_parsed_response.json")
+        guideline_file = os.path.join(states_dir, "guideline_response.json")
         if os.path.exists(guideline_file):
             with open(guideline_file, 'r', encoding='utf-8') as f:
                 self.guideline = json.load(f)
@@ -207,16 +222,45 @@ class Manager:
         self.load_checkpoint_state()
         
         # Validate required states are loaded
-        if not hasattr(self, 'description_analysis'):
-            logger.error("Cannot resume: description_analysis not found")
+        if not hasattr(self, 'description_analysis') or self.description_analysis is None:
+            logger.error("Cannot resume: description_analysis not found or is None")
+            logger.error("Make sure you have run the pipeline at least until the description analysis step")
             return False
-        if not hasattr(self, 'guideline'):
-            logger.error("Cannot resume: guideline not found")
+        
+        # For resume from guideline, we don't need existing guideline
+        if start_from != "guideline" and (not hasattr(self, 'guideline') or self.guideline is None):
+            logger.error(f"Cannot resume from {start_from}: guideline not found")
+            logger.error("For this resume point, you need to have run until guideline generation")
             return False
 
         if start_from == "guideline":
             # Load custom prompt template if available
             self.update_guideline_prompt_template()
+            
+            # Check if we have necessary data for guideline generation
+            if not hasattr(self, 'profiling_result') or not hasattr(self, 'model_suggestions'):
+                logger.warning("Missing profiling or model suggestions data. Running those steps first...")
+                
+                # Re-run profiling if needed
+                if not hasattr(self, 'profiling_result'):
+                    profiling_result = self.profiling_agent()
+                    if "error" in profiling_result:
+                        logger.error(f"Data profiling failed: {profiling_result['error']}")
+                        return False
+                    self.profiling_result = profiling_result
+                
+                # Re-run profiling summary if needed
+                if not hasattr(self, 'profiling_summary'):
+                    profiling_summary = self.profiling_summarizer_agent()
+                    if "error" in profiling_summary:
+                        logger.error(f"Profiling summarization failed: {profiling_summary['error']}")
+                        return False
+                    self.profiling_summary = profiling_summary
+                
+                # Re-run model retrieval if needed
+                if not hasattr(self, 'model_suggestions'):
+                    model_suggestions = self.model_retriever_agent()
+                    self.model_suggestions = model_suggestions
             
             # Re-run guideline generation (useful after editing prompt)
             guideline = self.guideline_agent()

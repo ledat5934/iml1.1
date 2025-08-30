@@ -109,7 +109,7 @@ python run_checkpoint.py -i ./datasets/my_data --stop-at-guideline
 # Output: runs/run_20240101_120000_abcd1234/
 
 # Bước 2: Chỉnh sửa guideline
-# Mở và sửa file: runs/run_20240101_120000_abcd1234/states/guideline_agent_parsed_response.json
+# Mở và sửa file: runs/run_20240101_120000_abcd1234/states/guideline_response.json
 
 # Bước 3: Tiếp tục pipeline
 python run_checkpoint.py -i ./datasets/my_data --resume-from-preprocessing -o ./runs/run_20240101_120000_abcd1234
@@ -154,11 +154,11 @@ python run.py -i ./data
 - `custom_guideline_prompt.txt`: **File prompt template có thể chỉnh sửa**
 
 ### Trong thư mục states/:
-- `description_analyzer_parsed_response.json`: Kết quả phân tích mô tả bài toán
+- `description_analyzer_response.json`: Kết quả phân tích mô tả bài toán
 - `profiling_result.json`: Kết quả phân tích dữ liệu chi tiết
-- `profiling_summarizer_parsed_response.json`: Tóm tắt phân tích dữ liệu  
+- `profiling_summary.json`: Tóm tắt phân tích dữ liệu  
 - `model_retrieval.json`: Đề xuất models từ HuggingFace
-- `guideline_agent_parsed_response.json`: File guideline có thể chỉnh sửa (cách cũ)
+- `guideline_response.json`: File guideline có thể chỉnh sửa (cách cũ)
 - `guideline_prompt.txt`: Prompt đã được format để gửi cho LLM
 - `guideline_prompt_template_used.txt`: Template prompt đã được sử dụng
 
