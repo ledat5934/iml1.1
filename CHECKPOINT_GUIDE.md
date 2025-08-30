@@ -9,7 +9,37 @@ Tính năng checkpoint cho phép bạn:
 
 ## Cách sử dụng
 
-### 1. Chạy pipeline đến bước tạo guideline (Khuyên dùng)
+### 1A. Chạy pipeline đến trước bước tạo guideline để sửa prompt (Tính năng mới)
+
+```bash
+# Dừng trước khi tạo guideline để sửa prompt template
+python run_checkpoint.py -i ./path/to/your/data --stop-before-guideline
+```
+
+### 1B. Sửa prompt template của guideline
+
+Sau khi pipeline dừng, bạn sẽ thấy thông báo:
+```
+Pipeline stopped before guideline generation.
+You can now edit the guideline prompt template and resume from guideline generation.
+```
+
+**Tìm và sửa file prompt template:**
+- Vào thư mục output (ví dụ: `runs/run_20240101_120000_abcd1234/`)
+- Mở file: `custom_guideline_prompt.txt`
+- Chỉnh sửa prompt template theo ý muốn (giữ nguyên format với các placeholder như `{dataset_name}`, `{task_desc}`, v.v.)
+- Lưu file
+
+### 1C. Tiếp tục pipeline từ bước tạo guideline với prompt mới
+
+```bash
+# Tiếp tục từ bước tạo guideline (sử dụng prompt đã sửa)
+python run_checkpoint.py -i ./path/to/your/data --resume-from-guideline -o ./runs/run_20240101_120000_abcd1234
+```
+
+---
+
+### 2. Chạy pipeline đến bước tạo guideline (Cách cũ - sửa guideline trực tiếp)
 
 ```bash
 # Sử dụng script helper (dễ dàng nhất)
@@ -48,15 +78,31 @@ python run.py -i ./path/to/your/data --checkpoint-mode resume --checkpoint-actio
 ### Chế độ Partial (dừng tại):
 - `description`: Sau phân tích mô tả bài toán
 - `profiling`: Sau phân tích dữ liệu  
-- `guideline`: Sau tạo guideline (thường dùng nhất)
+- `pre-guideline`: **Trước** tạo guideline (để sửa prompt template)
+- `guideline`: Sau tạo guideline (để sửa guideline trực tiếp)
 
 ### Chế độ Resume (tiếp tục từ):
+- `guideline`: **Từ bước tạo guideline (với prompt template đã sửa)**
 - `preprocessing`: Từ bước tạo code preprocessing
 - `modeling`: Từ bước tạo code modeling
 - `assembler`: Từ bước assemble và execute
 
 ## Ví dụ workflow hoàn chỉnh
 
+### Workflow 1: Sửa prompt template (Mới - Khuyên dùng)
+```bash
+# Bước 1: Dừng trước khi tạo guideline
+python run_checkpoint.py -i ./datasets/my_data --stop-before-guideline
+# Output: runs/run_20240101_120000_abcd1234/
+
+# Bước 2: Chỉnh sửa prompt template
+# Mở và sửa file: runs/run_20240101_120000_abcd1234/custom_guideline_prompt.txt
+
+# Bước 3: Tiếp tục từ tạo guideline với prompt mới
+python run_checkpoint.py -i ./datasets/my_data --resume-from-guideline -o ./runs/run_20240101_120000_abcd1234
+```
+
+### Workflow 2: Sửa guideline trực tiếp (Cách cũ)
 ```bash
 # Bước 1: Chạy đến guideline
 python run_checkpoint.py -i ./datasets/my_data --stop-at-guideline
@@ -73,6 +119,9 @@ python run_checkpoint.py -i ./datasets/my_data --resume-from-preprocessing -o ./
 
 ### Dừng tại các bước khác:
 ```bash
+# Dừng trước tạo guideline (để sửa prompt)
+python run_checkpoint.py -i ./data --stop-before-guideline
+
 # Dừng sau phân tích dữ liệu
 python run_checkpoint.py -i ./data --stop-at-profiling
 
@@ -82,6 +131,9 @@ python run_checkpoint.py -i ./data --stop-at-description
 
 ### Tiếp tục từ các bước khác:
 ```bash
+# Tiếp tục từ tạo guideline (sau khi sửa prompt)
+python run_checkpoint.py -i ./data --resume-from-guideline -o ./existing_run
+
 # Tiếp tục từ modeling (bỏ qua preprocessing)
 python run_checkpoint.py -i ./data --resume-from-modeling -o ./existing_run
 
@@ -96,13 +148,19 @@ python run_checkpoint.py -i ./data --full
 python run.py -i ./data
 ```
 
-## Files quan trọng trong thư mục states/
+## Files quan trọng
 
+### Trong thư mục output root:
+- `custom_guideline_prompt.txt`: **File prompt template có thể chỉnh sửa**
+
+### Trong thư mục states/:
 - `description_analyzer_parsed_response.json`: Kết quả phân tích mô tả bài toán
 - `profiling_result.json`: Kết quả phân tích dữ liệu chi tiết
 - `profiling_summarizer_parsed_response.json`: Tóm tắt phân tích dữ liệu  
 - `model_retrieval.json`: Đề xuất models từ HuggingFace
-- `guideline_agent_parsed_response.json`: **File guideline có thể chỉnh sửa**
+- `guideline_agent_parsed_response.json`: File guideline có thể chỉnh sửa (cách cũ)
+- `guideline_prompt.txt`: Prompt đã được format để gửi cho LLM
+- `guideline_prompt_template_used.txt`: Template prompt đã được sử dụng
 
 ## Lưu ý quan trọng
 

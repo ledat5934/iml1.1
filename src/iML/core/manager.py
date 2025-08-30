@@ -134,6 +134,13 @@ class Manager:
         model_suggestions = self.model_retriever_agent()
         self.model_suggestions = model_suggestions
 
+        if stop_after == "pre-guideline":
+            # Save the default prompt template for editing
+            self.save_default_guideline_prompt_template()
+            logger.info("Pipeline stopped before guideline generation.")
+            logger.info("You can now edit the guideline prompt template and resume from guideline generation.")
+            return True
+
         # Step 3c: Run guideline agent
         guideline = self.guideline_agent()
         if "error" in guideline:
@@ -207,7 +214,19 @@ class Manager:
             logger.error("Cannot resume: guideline not found")
             return False
 
-        if start_from == "preprocessing":
+        if start_from == "guideline":
+            # Load custom prompt template if available
+            self.update_guideline_prompt_template()
+            
+            # Re-run guideline generation (useful after editing prompt)
+            guideline = self.guideline_agent()
+            if "error" in guideline:
+                logger.error(f"Guideline generation failed: {guideline['error']}")
+                return False
+            self.guideline = guideline
+            logger.info("Guideline regenerated successfully.")
+
+        if start_from in ["guideline", "preprocessing"]:
             # Step 4: Run Preprocessing Coder Agent
             preprocessing_code_result = self.preprocessing_coder_agent()
             if preprocessing_code_result.get("status") == "failed":
@@ -216,7 +235,7 @@ class Manager:
             self.preprocessing_code = preprocessing_code_result.get("code")
             logger.info("Preprocessing code generated and validated successfully.")
 
-        if start_from in ["preprocessing", "modeling"]:
+        if start_from in ["guideline", "preprocessing", "modeling"]:
             # Step 5: Run Modeling Coder Agent
             modeling_code_result = self.modeling_coder_agent()
             if modeling_code_result.get("status") == "failed":
@@ -225,7 +244,7 @@ class Manager:
             self.modeling_code = modeling_code_result.get("code")
             logger.info("Modeling code generated successfully.")
 
-        if start_from in ["preprocessing", "modeling", "assembler"]:
+        if start_from in ["guideline", "preprocessing", "modeling", "assembler"]:
             # Step 6: Run Assembler Agent
             assembler_result = self.assembler_agent()
             if assembler_result.get("status") == "failed":
@@ -236,6 +255,42 @@ class Manager:
 
         logger.info("AutoML pipeline completed successfully!")
         return True
+
+    def update_guideline_prompt_template(self, new_template: str = None):
+        """
+        Update the guideline prompt template.
+        If new_template is None, it will load from a file if it exists.
+        """
+        import os
+        
+        # Try to load from file first
+        custom_prompt_file = os.path.join(self.output_folder, "custom_guideline_prompt.txt")
+        if new_template is None and os.path.exists(custom_prompt_file):
+            with open(custom_prompt_file, 'r', encoding='utf-8') as f:
+                new_template = f.read()
+            logger.info("Loaded custom guideline prompt from file")
+        elif new_template is None:
+            logger.info("No custom prompt template provided, using default")
+            return
+        
+        # Update the template
+        self.guideline_agent.prompt_handler.template = new_template
+        logger.info("Guideline prompt template updated")
+        
+        # Save the template for reference
+        self.save_and_log_states(new_template, "guideline_prompt_template_used.txt")
+
+    def save_default_guideline_prompt_template(self):
+        """Save the default guideline prompt template for editing."""
+        default_template = self.guideline_agent.prompt_handler.default_template()
+        template_file = os.path.join(self.output_folder, "custom_guideline_prompt.txt")
+        
+        with open(template_file, 'w', encoding='utf-8') as f:
+            f.write(default_template)
+        
+        logger.info(f"Default guideline prompt template saved to: {template_file}")
+        logger.info("You can edit this file and resume from guideline generation.")
+        return template_file
 
     def run_pipeline(self):
         """Run the entire pipeline from description analysis to code generation."""

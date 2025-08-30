@@ -23,11 +23,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run until guideline generation (default behavior for manual editing)
+  # Stop before guideline generation to edit prompt template
+  python run_checkpoint.py -i ./data --stop-before-guideline
+
+  # Run until guideline generation (default behavior for manual guideline editing)
   python run_checkpoint.py -i ./data --stop-at-guideline
 
   # Run until profiling only  
   python run_checkpoint.py -i ./data --stop-at-profiling
+
+  # Resume from guideline generation (after editing prompt template)
+  python run_checkpoint.py -i ./data --resume-from-guideline -o ./runs/run_20240101_120000_abcd1234
 
   # Resume from preprocessing (after manual guideline editing)
   python run_checkpoint.py -i ./data --resume-from-preprocessing -o ./runs/run_20240101_120000_abcd1234
@@ -69,6 +75,11 @@ Advanced usage:
         help="Run the complete pipeline (default behavior)"
     )
     shortcut_group.add_argument(
+        "--stop-before-guideline",
+        action="store_true",
+        help="Stop before guideline generation to edit prompt template"
+    )
+    shortcut_group.add_argument(
         "--stop-at-guideline",
         action="store_true",
         help="Stop after guideline generation for manual editing"
@@ -82,6 +93,11 @@ Advanced usage:
         "--stop-at-description",
         action="store_true",
         help="Stop after description analysis"
+    )
+    shortcut_group.add_argument(
+        "--resume-from-guideline",
+        action="store_true",
+        help="Resume from guideline generation step (requires existing output directory)"
     )
     shortcut_group.add_argument(
         "--resume-from-preprocessing",
@@ -122,7 +138,10 @@ Advanced usage:
         checkpoint_action = args.checkpoint_action or "guideline"
     else:
         # Use shortcuts
-        if args.stop_at_guideline:
+        if args.stop_before_guideline:
+            checkpoint_mode = "partial"
+            checkpoint_action = "pre-guideline"
+        elif args.stop_at_guideline:
             checkpoint_mode = "partial"
             checkpoint_action = "guideline"
         elif args.stop_at_profiling:
@@ -131,6 +150,9 @@ Advanced usage:
         elif args.stop_at_description:
             checkpoint_mode = "partial"
             checkpoint_action = "description"
+        elif args.resume_from_guideline:
+            checkpoint_mode = "resume"
+            checkpoint_action = "guideline"
         elif args.resume_from_preprocessing:
             checkpoint_mode = "resume"
             checkpoint_action = "preprocessing"
@@ -156,8 +178,12 @@ Advanced usage:
     # Print execution plan
     if checkpoint_mode == "partial":
         print(f"🚀 Running pipeline until: {checkpoint_action}")
-        print("💡 After completion, you can manually edit the guideline and resume with:")
-        print(f"   python run_checkpoint.py -i {args.input} --resume-from-preprocessing -o <output_dir>")
+        if checkpoint_action == "pre-guideline":
+            print("💡 After completion, you can edit the prompt template and resume with:")
+            print(f"   python run_checkpoint.py -i {args.input} --resume-from-guideline -o <output_dir>")
+        elif checkpoint_action == "guideline":
+            print("💡 After completion, you can manually edit the guideline and resume with:")
+            print(f"   python run_checkpoint.py -i {args.input} --resume-from-preprocessing -o <output_dir>")
     elif checkpoint_mode == "resume":
         print(f"🔄 Resuming pipeline from: {checkpoint_action}")
         print(f"📁 Using existing run directory: {args.output}")
