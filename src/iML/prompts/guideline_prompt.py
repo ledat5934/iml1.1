@@ -61,17 +61,14 @@ For a categorical column 'product_id' with over 100 unique values, a good recomm
 Example 3: Handling Missing Numerical Data
 For a numeric column 'income' with 25% missing values and a skewed distribution, a good recommendation is ["Impute 'income' with its median"].
 
+#IMPORTANT: YOU MUST USE THIS MODELING ALGORITHM: pretrained DeBERTa v3-large
 Before generating the final JSON, consider:
 1. Identify the target variable and task type (classification, regression, etc.).
 2. Review each variable's type, statistics, and potential issues.
-3. Choose the most appropriate modeling algorithms, then choose appropriate and reasonable preprocessing steps for that modeling algorithm.
+3. Choose appropriate and reasonable preprocessing steps for that pretrained model.
 4. If using pretrained models, choose the most appropriate ones.
 5. Compile these specific actions into the required JSON format.
 
-## Pretrained Models & Embedding Options (from Hugging Face):
-```json
-{model_suggestions_str}
-```
 
 Output Format: Your response must be in the JSON format below:
 Provide your response in JSON format. An empty list or null is acceptable for recommendations if not applicable.
