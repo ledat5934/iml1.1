@@ -12,7 +12,8 @@ class ModelingCoderPrompt(BasePrompt):
     def default_template(self) -> str:
         """Default template to request LLM to generate modeling code."""
         return """
-You are an expert ML engineer. Your task is to generate Python code for modeling, which will be combined with the provided preprocessing code.
+You are an expert ML engineer. Your task is to generate a COMPLETE and EXECUTABLE Python script for modeling.
+This script will be combined with the provided preprocessing code that uses generators.
 
 ## CONTEXT
 - **Dataset Name**: {dataset_name}
@@ -21,8 +22,13 @@ You are an expert ML engineer. Your task is to generate Python code for modeling
 - **Data File Description**: {data_file_description}
 - **Output data format**: {output_data_format}
 
+## IMPORTANT DATA HANDLING
+The provided preprocessing code's `preprocess_data` function returns **a tuple of generators** (e.g., `train_gen, val_gen, test_gen`) to save memory.
+Your main execution block MUST correctly handle these generators. For models that don't train directly on generators (like most scikit-learn models), you must first iterate through the generators to aggregate the complete dataset into memory (e.g., using `pandas.concat` or `numpy.vstack`).
+
 ## MODELING GUIDELINES:
 {modeling_guideline}
+
 
 ## PREPROCESSING CODE (Do NOT include this in your response):
 The following preprocessing code, including a function `preprocess_data(file_paths: dict)`, will be available in the execution environment. You must call it to get the data.
@@ -36,9 +42,10 @@ The following preprocessing code, including a function `preprocess_data(file_pat
 3.  Define a function `train_and_predict(X_train, y_train, X_test)`.
 4.  Keep the data loading code of the preprocessing code.
 5.  The main execution block (`if __name__ == "__main__":`) must:
-    a. Call the existing `preprocess_data()` function to get the datasets.
-    b. Call your `train_and_predict()` function.
-    c. Save the predictions to a `submission.csv` file. The format should typically be two columns: an identifier column and the prediction column.
+    a. Call preprocess_data() to get the data generators.
+    b. Iterate through the generators to collect and construct the full X_train, y_train, X_test, and test_ids datasets.
+    c. Call your train_and_predict() function with the aggregated data.
+    d. Save the final predictions to a submission.csv file.
 6.  **Critical Error Handling**: The main execution block MUST be wrapped in a `try...except` block. If ANY exception occurs, the script MUST print the error to stderr and **exit with a non-zero status code** (`sys.exit(1)`).
 7.  Follow the modeling guidelines for algorithm choice.
 8.  Do not use extensive hyperparameter tuning unless specified. Keep the code efficient.
@@ -72,13 +79,32 @@ if __name__ == "__main__":
         
         # 1. Preprocess data using the provided function
         # The number of returned elements must match the preprocess_data function
-        X_train, X_test, y_train, y_test, test_ids = preprocess_data(file_paths)
+        train_gen, val_gen, test_gen = preprocess_data(file_paths)
+        print("Data generators initialized successfully.")
+        # 2. Aggregate data from generators
+        # This is required for models that cannot train directly on generators (e.g., scikit-learn).
+        # Assumes train/val generators yield batches of (X, y)
+        # Assumes test generator yields batches of (X, ids)
+        
+        print("Aggregating data from generators...")
+        X_train_list, y_train_list = zip(*[batch for batch in train_gen])
+        X_train = pd.concat(X_train_list) if isinstance(X_train_list[0], pd.DataFrame) else np.vstack(X_train_list)
+        y_train = pd.concat(y_train_list) if isinstance(y_train_list[0], pd.Series) else np.concatenate(y_train_list)
 
-        # 2. Train model and get predictions
+        # Handle test generator (assuming it yields features and IDs)
+        X_test_list, test_ids_list = zip(*[batch for batch in test_gen])
+        X_test = pd.concat(X_test_list) if isinstance(X_test_list[0], pd.DataFrame) else np.vstack(X_test_list)
+        test_ids = np.concatenate(test_ids_list)
+        
+        print("Data successfully aggregated.")
+
+        # 3. Train model and get predictions
         predictions = train_and_predict(X_train, y_train, X_test)
+        print("Model training and prediction complete.")
 
-        # 3. Create submission file
-        submission_df = pd.DataFrame({{'test_id_column_name': test_ids, 'prediction_column_name': predictions}})
+        # 4. Create submission file
+        # IMPORTANT: Use the actual column names required for the submission
+        submission_df = pd.DataFrame({{'ID_COLUMN_NAME': test_ids, 'PREDICTION_COLUMN_NAME': predictions}})
         submission_df.to_csv("submission.csv", index=False)
 
         print("Modeling script executed successfully and submission.csv created!")
