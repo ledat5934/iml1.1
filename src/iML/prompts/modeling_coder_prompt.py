@@ -23,9 +23,18 @@ This script will be combined with the provided preprocessing code that uses gene
 - **Output data format**: {output_data_format}
 
 ## IMPORTANT DATA HANDLING
-The provided preprocessing code's `preprocess_data` function returns **a tuple of generators** (e.g., `train_gen, val_gen, test_gen`) to save memory.
-Your main execution block MUST correctly handle these generators. For models that don't train directly on generators (like most scikit-learn models), you must first iterate through the generators to aggregate the complete dataset into memory (e.g., using `pandas.concat` or `numpy.vstack`).
+The provided preprocessing code's `preprocess_data` function returns **a tuple of generators** (e.g., `train_gen, val_gen, test_gen`) to save memory. Your code must handle these generators efficiently. There are two primary ways to do this, depending on the model's capabilities:
 
+### Path 1: Incremental/Batch Training (PREFERRED METHOD)
+This is the most memory-efficient approach and should be your default choice.
+- **For scikit-learn**: Use models that support the `.partial_fit()` method (e.g., `SGDClassifier`, `MultinomialNB`, `PassiveAggressiveClassifier`).
+- **Logic**: You will iterate through the training generator, and for each batch of data, you will call `model.partial_fit(X_batch, y_batch)`.
+- **This method AVOIDS loading the entire dataset into memory.**
+
+### Path 2: Full Data Aggregation (FALLBACK METHOD)
+Use this method **ONLY IF** the model specified in the `MODELING_GUIDELINES` does **NOT** support incremental training (e.g., `RandomForestClassifier`, `SVC`, `KNeighborsClassifier`).
+- **Logic**: Iterate through the generators to collect all batches and aggregate them into a single large dataset in memory (e.g., using `pandas.concat` or `numpy.vstack`).
+- **Warning**: Acknowledge that this approach negates the memory-saving benefits of using generators and should only be a fallback.
 ## MODELING GUIDELINES:
 {modeling_guideline}
 
@@ -43,8 +52,8 @@ The following preprocessing code, including a function `preprocess_data(file_pat
 4.  Keep the data loading code of the preprocessing code.
 5.  The main execution block (`if __name__ == "__main__":`) must:
     a. Call preprocess_data() to get the data generators.
-    b. Iterate through the generators to collect and construct the full X_train, y_train, X_test, and test_ids datasets.
-    c. Call your train_and_predict() function with the aggregated data.
+    b. **Handle the generators based on the chosen model's capability (see IMPORTANT DATA HANDLING). Prefer incremental training (Path 1). Only aggregate the full dataset into memory (Path 2) if the model does not support batch-based training.**
+    c. Call your train_and_predict() function.
     d. Save the final predictions to a submission.csv file.
 6.  **Critical Error Handling**: The main execution block MUST be wrapped in a `try...except` block. If ANY exception occurs, the script MUST print the error to stderr and **exit with a non-zero status code** (`sys.exit(1)`).
 7.  Follow the modeling guidelines for algorithm choice.
@@ -59,51 +68,58 @@ The following preprocessing code, including a function `preprocess_data(file_pat
 ```python
 # Your modeling code starts here
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+import numpy as np
+from sklearn.linear_model import SGDClassifier # Example model that supports partial_fit
 import sys
 import os
 
-{preprocessing_code}
+# The 'preprocess_data' function is assumed to be defined here from the context.
+# {preprocessing_code}
 
-def train_and_predict(X_train, y_train, X_test):
-    # Your modeling, training, and prediction logic here
-    model = RandomForestClassifier(random_state=42)
-    model.fit(X_train, y_train)
+# The train_and_predict function now needs to handle the training loop
+def train_and_predict(train_gen, test_gen):
+    # Initialize a model that supports incremental learning
+    model = SGDClassifier(random_state=42)
+
+    # 1. Incremental training using the generator
+    print("Starting incremental training...")
+    # Note: For the first call to partial_fit, you might need to specify all possible class labels
+    # We can get them by iterating through the generator once if not known beforehand.
+    # For simplicity, we assume they are known or handled within the loop.
+    # A robust implementation would collect all unique `y` values first.
+    all_classes = np.array([0, 1]) # IMPORTANT: This is a placeholder, must be replaced with actual classes
+    for X_batch, y_batch in train_gen:
+        model.partial_fit(X_batch, y_batch, classes=all_classes)
+    print("Incremental training complete.")
+
+    # 2. Aggregate test data for prediction
+    # Prediction is often done on the full test set at once.
+    print("Aggregating test data for prediction...")
+    X_test_list, test_ids_list = zip(*[batch for batch in test_gen])
+    X_test = pd.concat(X_test_list) if isinstance(X_test_list[0], pd.DataFrame) else np.vstack(X_test_list)
+    test_ids = np.concatenate(test_ids_list)
+
+    # 3. Make predictions
     predictions = model.predict(X_test)
-    return predictions
+    
+    return predictions, test_ids
+
 
 if __name__ == "__main__":
     try:
         # These file paths will be available in the execution environment
         file_paths = {file_paths_main}
         
-        # 1. Preprocess data using the provided function
+        # 1. Get data generators
         # The number of returned elements must match the preprocess_data function
         train_gen, val_gen, test_gen = preprocess_data(file_paths)
         print("Data generators initialized successfully.")
-        # 2. Aggregate data from generators
-        # This is required for models that cannot train directly on generators (e.g., scikit-learn).
-        # Assumes train/val generators yield batches of (X, y)
-        # Assumes test generator yields batches of (X, ids)
         
-        print("Aggregating data from generators...")
-        X_train_list, y_train_list = zip(*[batch for batch in train_gen])
-        X_train = pd.concat(X_train_list) if isinstance(X_train_list[0], pd.DataFrame) else np.vstack(X_train_list)
-        y_train = pd.concat(y_train_list) if isinstance(y_train_list[0], pd.Series) else np.concatenate(y_train_list)
-
-        # Handle test generator (assuming it yields features and IDs)
-        X_test_list, test_ids_list = zip(*[batch for batch in test_gen])
-        X_test = pd.concat(X_test_list) if isinstance(X_test_list[0], pd.DataFrame) else np.vstack(X_test_list)
-        test_ids = np.concatenate(test_ids_list)
-        
-        print("Data successfully aggregated.")
-
-        # 3. Train model and get predictions
-        predictions = train_and_predict(X_train, y_train, X_test)
+        # 2. Train model and get predictions using the generator-aware function
+        predictions, test_ids = train_and_predict(train_gen, test_gen)
         print("Model training and prediction complete.")
 
-        # 4. Create submission file
-        # IMPORTANT: Use the actual column names required for the submission
+        # 3. Create submission file
         submission_df = pd.DataFrame({{'ID_COLUMN_NAME': test_ids, 'PREDICTION_COLUMN_NAME': predictions}})
         submission_df.to_csv("submission.csv", index=False)
 
