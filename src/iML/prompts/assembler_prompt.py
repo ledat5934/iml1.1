@@ -26,6 +26,9 @@ Your task is to ensure the script is clean, robust, and correct.
 5.  **Clarity**: Ensure the final script is clean and well-structured.
 6.  **Sample Submission File**: Sample submission file given is for template reference (Columns) only. You have to use the test data or test file to generate predictions and your right submission file. In some cases, you must browse the test image folder to get the IDs and data.
 7.  **Do not add any other code.**
+8.  **Data Loading**: Keep the data loading code of the preprocessing code. DO NOT CHANGE THE FILE PATHS FROM THE ORIGINAL CODE.
+
+
 
 ## ORIGINAL CODE:
 ```python
