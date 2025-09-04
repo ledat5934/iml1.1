@@ -61,7 +61,7 @@ For a categorical column 'product_id' with over 100 unique values, a good recomm
 Example 3: Handling Missing Numerical Data
 For a numeric column 'income' with 25% missing values and a skewed distribution, a good recommendation is ["Impute 'income' with its median"].
 
-#IMPORTANT: YOU MUST USE THIS MODELING ALGORITHM: CatBoost + DinoV2 model.
+#IMPORTANT: YOU MUST USE THIS MODELING ALGORITHM: vit_large_patch16_224 model.
 Before generating the final JSON, consider:
 1. Identify the target variable and task type (classification, regression, etc.).
 2. Review each variable's type, statistics, and potential issues.
