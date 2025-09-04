@@ -61,7 +61,30 @@ For a categorical column 'product_id' with over 100 unique values, a good recomm
 Example 3: Handling Missing Numerical Data
 For a numeric column 'income' with 25% missing values and a skewed distribution, a good recommendation is ["Impute 'income' with its median"].
 
-#IMPORTANT: YOU MUST USE THIS MODELING ALGORITHM: vit_large_patch16_224 model.
+#IMPORTANT: YOU MUST USE THIS MODELING ALGORITHM: vit_large_patch16_224 from torchvision model.
+EXAMPLE CODE:
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torchvision import models
+class PretrainViT(nn.Module):
+
+    def __init__(self):
+        super(PretrainViT, self).__init__()
+        model = models.vit_l_16(pretrained=True)
+        num_classifier_feature = model.heads.head.in_features
+        model.heads.head = nn.Sequential(
+            nn.Linear(num_classifier_feature, 120)
+        )
+        self.model = model
+
+        for param in self.model.named_parameters():
+            if "heads" not in param[0]:
+                param[1].requires_grad = False
+
+```
 Before generating the final JSON, consider:
 1. Identify the target variable and task type (classification, regression, etc.).
 2. Review each variable's type, statistics, and potential issues.
