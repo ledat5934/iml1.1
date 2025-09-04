@@ -26,29 +26,7 @@ Your task is to ensure the script is clean, robust, and correct.
 5.  **Clarity**: Ensure the final script is clean and well-structured.
 6.  **Sample Submission File**: Sample submission file given is for template reference (Columns) only. You have to use the test data or test file to generate predictions and your right submission file. In some cases, you must browse the test image folder to get the IDs and data.
 7.  **Do not add any other code.**
-EXAMPLE CODE:
-```python
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from torchvision import models
-class PretrainViT(nn.Module):
 
-    def __init__(self):
-        super(PretrainViT, self).__init__()
-        model = models.vit_l_16(pretrained=True)
-        num_classifier_feature = model.heads.head.in_features
-        model.heads.head = nn.Sequential(
-            nn.Linear(num_classifier_feature, 120)
-        )
-        self.model = model
-
-        for param in self.model.named_parameters():
-            if "heads" not in param[0]:
-                param[1].requires_grad = False
-
-```
 ## ORIGINAL CODE:
 ```python
 {original_code}
