@@ -79,6 +79,8 @@ def run_automl_pipeline(input_data_folder: str, output_folder: str = None, confi
         # 5. Start the pipeline run based on checkpoint mode
         if checkpoint_mode == "full":
             manager.run_pipeline()
+        elif checkpoint_mode == "multi-iteration":
+            manager.run_pipeline_multi_iteration()
         elif checkpoint_mode == "partial":
             success = manager.run_pipeline_partial(stop_after=checkpoint_action)
             if success:
@@ -91,7 +93,7 @@ def run_automl_pipeline(input_data_folder: str, output_folder: str = None, confi
             if not success:
                 logger.error("Resume pipeline execution failed.")
         else:
-            logger.error(f"Invalid checkpoint_mode: {checkpoint_mode}. Use 'full', 'partial', or 'resume'.")
+            logger.error(f"Invalid checkpoint_mode: {checkpoint_mode}. Use 'full', 'multi-iteration', 'partial', or 'resume'.")
 
     except PipelineTimeoutError as e:
         logger.error(f"Pipeline stopped due to timeout: {e}")

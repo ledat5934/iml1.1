@@ -26,7 +26,7 @@ class ModelingCoderAgent(BaseAgent):
             llm_config=self.llm_config
         )
 
-    def __call__(self) -> Dict[str, Any]:
+    def __call__(self, iteration_type=None) -> Dict[str, Any]:
         """
         Agent for generating code based on training requirements.
         """
@@ -45,6 +45,7 @@ class ModelingCoderAgent(BaseAgent):
             guideline=guideline,
             description=description,
             preprocessing_code=preprocessing_code,
+            iteration_type=iteration_type,
         )
         
         response = self.llm.assistant_chat(prompt)

@@ -27,7 +27,7 @@ class AssemblerAgent(BaseAgent):
         )
         self.max_retries = max_retries
 
-    def __call__(self) -> Dict[str, Any]:
+    def __call__(self, iteration_type=None) -> Dict[str, Any]:
         """
         Assemble, execute and retry final code until successful.
         """
@@ -57,7 +57,8 @@ class AssemblerAgent(BaseAgent):
                 original_code=combined_code,
                 output_path=submission_path,
                 description=description,
-                error_message=error_message
+                error_message=error_message,
+                iteration_type=iteration_type
             )
 
             response = self.llm.assistant_chat(prompt)

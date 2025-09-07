@@ -32,9 +32,9 @@ def main():
     )
     parser.add_argument(
         "--checkpoint-mode",
-        choices=["full", "partial", "resume"],
+        choices=["full", "multi-iteration", "partial", "resume"],
         default="full",
-        help="Pipeline execution mode: 'full' (complete run), 'partial' (stop at checkpoint), 'resume' (continue from checkpoint)"
+        help="Pipeline execution mode: 'full' (complete run), 'multi-iteration' (3 iterations with different algorithms), 'partial' (stop at checkpoint), 'resume' (continue from checkpoint)"
     )
     parser.add_argument(
         "--checkpoint-action",

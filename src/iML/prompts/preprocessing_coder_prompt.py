@@ -14,7 +14,7 @@ class PreprocessingCoderPrompt(BasePrompt):
         return """
 You are a professional Machine Learning Engineer.
 Generate complete and executable Python preprocessing code for the dataset below.
-IMPORTANT: Preprocess data by batch using generators to reduce memory usage.
+{batch_processing_instruction}
 IMPORTANT: DO NOT CREATE DUMMY DATA.
 ## DATASET INFO:
 - Name: {dataset_name}
@@ -35,7 +35,7 @@ IMPORTANT: DO NOT CREATE DUMMY DATA.
 2. Include all necessary imports (pandas, scikit-learn, numpy, etc.).
 3. Handle file loading exactly as the provided paths, DO NOT CREATE DUMMY DATA FILES.
 4. Follow the preprocessing guidelines exactly.
-5. Create a function `preprocess_data()` that takes a dictionary of file paths and returns a tuple of **generators**, one for each data split (e.g., train_generator, val_generator, test_generator).
+{data_return_format}
 6. Include basic error handling and data validation within the function.
 7. Limit comments in the code.
 8. Preprocess both the train and test data consistently.
@@ -87,11 +87,20 @@ if __name__ == "__main__":
 ````
 """
 
-    def build(self, guideline: Dict, description: Dict, previous_code: str = None, error_message: str = None) -> str:
+    def build(self, guideline: Dict, description: Dict, previous_code: str = None, error_message: str = None, iteration_type: str = None) -> str:
         """Build prompt to generate preprocessing code."""
         
         preprocessing_guideline = guideline.get('preprocessing', {})
         target_info = guideline.get("target_identification", {})
+
+        # Add iteration-specific preprocessing guidance
+        iteration_guidance = self._get_iteration_guidance(iteration_type)
+        enhanced_guideline = json.dumps(preprocessing_guideline, indent=2)
+        if iteration_guidance:
+            enhanced_guideline += f"\n\n## ITERATION-SPECIFIC GUIDANCE:\n{iteration_guidance}"
+
+        # Get batch processing instruction and data return format based on iteration
+        batch_instruction, data_format = self._get_batch_processing_config(iteration_type)
 
         prompt = self.template.format(
             dataset_name=description.get('name', 'N/A'),
@@ -101,8 +110,10 @@ if __name__ == "__main__":
             data_file_desc=json.dumps(description.get('data file description', {})),
             file_paths=description.get('link to the dataset', []),
             file_paths_main=description.get('link to the dataset', []),
-            preprocessing_guideline=json.dumps(preprocessing_guideline, indent=2),
-            target_info=json.dumps(target_info, indent=2)
+            preprocessing_guideline=enhanced_guideline,
+            target_info=json.dumps(target_info, indent=2),
+            batch_processing_instruction=batch_instruction,
+            data_return_format=data_format
         )
 
         if previous_code and error_message:
@@ -132,6 +143,63 @@ Generate the corrected Python code:
         
         self.manager.save_and_log_states(prompt, "preprocessing_coder_prompt.txt")
         return prompt
+    
+    def _get_iteration_guidance(self, iteration_type: str = None) -> str:
+        """Get iteration-specific preprocessing guidance."""
+        if iteration_type == "traditional":
+            return """
+For Traditional ML algorithms (XGBoost, LightGBM, CatBoost):
+- Focus on feature engineering for tabular data
+- Use categorical encoding (Label/One-hot/Target encoding)
+- Apply numerical feature scaling if needed (StandardScaler, MinMaxScaler)
+- Handle missing values with appropriate imputation strategies
+- Consider feature selection techniques (SelectKBest, RFE)
+- Create polynomial or interaction features if beneficial
+- Ensure all features are numerical for tree-based models
+- Load entire dataset into memory since traditional ML can handle it efficiently
+"""
+        elif iteration_type == "custom_nn":
+            return """
+For Custom Neural Networks:
+- Apply numerical normalization/standardization (StandardScaler, MinMaxScaler)
+- Convert categorical variables to numerical embeddings or one-hot encoding
+- Reshape data to proper format for neural network input
+- Create train/validation splits suitable for NN training with proper batching
+- Apply data augmentation techniques if applicable
+- Ensure consistent data types (float32/float64)
+- Consider dimensionality reduction if needed
+"""
+        elif iteration_type == "pretrained":
+            return """
+For Pretrained Models:
+- Format data to match pretrained model input requirements
+- For text: prepare tokenization compatible with model tokenizer
+- For images: resize and normalize according to model specifications
+- For tabular: extract features suitable for pretrained embeddings
+- Maintain original data structure when possible for transfer learning
+- Handle special tokens or formatting required by pretrained models
+- Ensure data preprocessing matches pretrained model's training format
+"""
+        else:
+            return ""
+    
+    def _get_batch_processing_config(self, iteration_type: str = None) -> tuple[str, str]:
+        """Get batch processing instruction and data return format based on iteration type."""
+        if iteration_type == "traditional":
+            batch_instruction = "IMPORTANT: Load entire dataset into memory for traditional ML algorithms."
+            data_format = "5. Create a function `preprocess_data()` that takes a dictionary of file paths and returns a tuple of **preprocessed DataFrames/arrays** (e.g., X_train, X_val, X_test, y_train, y_val, y_test)."
+        elif iteration_type == "custom_nn":
+            batch_instruction = "IMPORTANT: Preprocess data by batch using generators to reduce memory usage for neural network training."
+            data_format = "5. Create a function `preprocess_data()` that takes a dictionary of file paths and returns a tuple of **generators**, one for each data split (e.g., train_generator, val_generator, test_generator)."
+        elif iteration_type == "pretrained":
+            batch_instruction = "IMPORTANT: Preprocess data by batch using generators, ensuring compatibility with pretrained model requirements."
+            data_format = "5. Create a function `preprocess_data()` that takes a dictionary of file paths and returns a tuple of **generators**, one for each data split (e.g., train_generator, val_generator, test_generator)."
+        else:
+            # Default behavior
+            batch_instruction = "IMPORTANT: Preprocess data by batch using generators to reduce memory usage."
+            data_format = "5. Create a function `preprocess_data()` that takes a dictionary of file paths and returns a tuple of **generators**, one for each data split (e.g., train_generator, val_generator, test_generator)."
+        
+        return batch_instruction, data_format
 
     def parse(self, response: str) -> str:
         """Extract Python code from LLM response."""

@@ -336,6 +336,128 @@ class Manager:
         logger.info("You can edit this file and resume from guideline generation.")
         return template_file
 
+    def run_pipeline_multi_iteration(self):
+        """Run the pipeline with 3 iterations for different algorithm approaches."""
+        logger.info("Starting Multi-Iteration AutoML Pipeline...")
+        
+        # Store original output folder
+        original_output_folder = self.output_folder
+        
+        # Define iterations
+        iterations = [
+            {
+                "name": "traditional",
+                "folder": "iteration_1_traditional",
+                "description": "Traditional ML algorithms (XGBoost, LightGBM, CatBoost)"
+            },
+            {
+                "name": "custom_nn", 
+                "folder": "iteration_2_custom_nn",
+                "description": "Custom Neural Networks"
+            },
+            {
+                "name": "pretrained",
+                "folder": "iteration_3_pretrained", 
+                "description": "Pretrained Models"
+            }
+        ]
+        
+        # Run shared analysis steps once
+        logger.info("Running shared analysis steps...")
+        success = self._run_shared_analysis()
+        if not success:
+            return
+            
+        # Run each iteration
+        for i, iteration in enumerate(iterations, 1):
+            logger.info(f"=== Starting Iteration {i}: {iteration['description']} ===")
+            
+            # Create iteration-specific output folder
+            iteration_output = os.path.join(original_output_folder, iteration['folder'])
+            os.makedirs(iteration_output, exist_ok=True)
+            
+            # Temporarily change output folder for this iteration
+            self.output_folder = iteration_output
+            
+            # Run iteration-specific pipeline
+            success = self._run_iteration_pipeline(iteration['name'])
+            if not success:
+                logger.error(f"Iteration {i} ({iteration['name']}) failed!")
+                continue
+                
+            logger.info(f"=== Iteration {i} completed successfully ===")
+        
+        # Restore original output folder
+        self.output_folder = original_output_folder
+        logger.info("Multi-Iteration AutoML Pipeline completed!")
+    
+    def _run_shared_analysis(self):
+        """Run the shared analysis steps (description, profiling, summarization, model retrieval)."""
+        # Step 1: Run description analysis agent
+        analysis_result = self.description_analyzer_agent()
+        if "error" in analysis_result:
+            logger.error(f"Description analysis failed: {analysis_result['error']}")
+            return False
+        logger.info(f"Analysis result: {analysis_result}")
+        self.description_analysis = analysis_result
+
+        # Step 2: Run profiling agent
+        profiling_result = self.profiling_agent()
+        if "error" in profiling_result:
+            logger.error(f"Data profiling failed: {profiling_result['error']}")
+            return False
+        self.profiling_result = profiling_result
+        logger.info("Profiling overview generated.")
+
+        # Step 3a: Summarize profiling via LLM to reduce noise
+        profiling_summary = self.profiling_summarizer_agent()
+        if "error" in profiling_summary:
+            logger.error(f"Profiling summarization failed: {profiling_summary['error']}")
+            return False
+        self.profiling_summary = profiling_summary
+
+        # Step 3b: Retrieve pretrained model/embedding suggestions
+        model_suggestions = self.model_retriever_agent()
+        self.model_suggestions = model_suggestions
+        
+        return True
+    
+    def _run_iteration_pipeline(self, iteration_type):
+        """Run the pipeline for a specific iteration type."""
+        # Step 1: Run guideline agent with iteration-specific algorithm constraint
+        guideline = self.guideline_agent(iteration_type=iteration_type)
+        if "error" in guideline:
+            logger.error(f"Guideline generation failed: {guideline['error']}")
+            return False
+        self.guideline = guideline
+        logger.info(f"Guideline generated successfully for {iteration_type}.")
+
+        # Step 2: Run Preprocessing Coder Agent
+        preprocessing_code_result = self.preprocessing_coder_agent(iteration_type=iteration_type)
+        if preprocessing_code_result.get("status") == "failed":
+            logger.error(f"Preprocessing code generation failed: {preprocessing_code_result.get('error')}")
+            return False
+        self.preprocessing_code = preprocessing_code_result.get("code")
+        logger.info("Preprocessing code generated and validated successfully.")
+
+        # Step 3: Run Modeling Coder Agent
+        modeling_code_result = self.modeling_coder_agent(iteration_type=iteration_type)
+        if modeling_code_result.get("status") == "failed":
+            logger.error(f"Modeling code generation failed: {modeling_code_result.get('error')}")
+            return False
+        self.modeling_code = modeling_code_result.get("code")
+        logger.info("Modeling code generated successfully.")
+
+        # Step 4: Run Assembler Agent
+        assembler_result = self.assembler_agent(iteration_type=iteration_type)
+        if assembler_result.get("status") == "failed":
+            logger.error(f"Final code assembly and execution failed: {assembler_result.get('error')}")
+            return False
+        self.assembled_code = assembler_result.get("code")
+        logger.info("Final script generated and executed successfully.")
+        
+        return True
+
     def run_pipeline(self):
         """Run the entire pipeline from description analysis to code generation."""
 

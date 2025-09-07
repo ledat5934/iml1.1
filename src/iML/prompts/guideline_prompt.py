@@ -61,7 +61,7 @@ For a categorical column 'product_id' with over 100 unique values, a good recomm
 Example 3: Handling Missing Numerical Data
 For a numeric column 'income' with 25% missing values and a skewed distribution, a good recommendation is ["Impute 'income' with its median"].
 
-#IMPORTANT: YOU MUST USE THIS MODELING ALGORITHM: Catboost.
+{algorithm_constraint}
 
 Before generating the final JSON, consider:
 1. Identify the target variable and task type (classification, regression, etc.).
@@ -106,7 +106,7 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
     }}
 }}"""
 
-    def build(self, description_analysis: Dict[str, Any], profiling_result: Dict[str, Any], model_suggestions: Dict[str, Any] | None = None) -> str:
+    def build(self, description_analysis: Dict[str, Any], profiling_result: Dict[str, Any], model_suggestions: Dict[str, Any] | None = None, iteration_type: str | None = None) -> str:
         """Build prompt from analysis and profiling results.
 
         Supports two formats:
@@ -191,6 +191,9 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
 
         variables_summary_str = json.dumps(variables_summary_dict, indent=2, ensure_ascii=False)
         model_suggestions_str = json.dumps(model_suggestions or {}, indent=2, ensure_ascii=False)
+        
+        # Generate algorithm constraint based on iteration type
+        algorithm_constraint = self._get_algorithm_constraint(iteration_type)
 
         prompt = self.template.format(
             dataset_name=dataset_name,
@@ -200,11 +203,24 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
             alerts=alerts_out if alerts_out else 'None',
             variables_summary_str=variables_summary_str,
             output_data=output_data,
-            model_suggestions_str=model_suggestions_str
+            model_suggestions_str=model_suggestions_str,
+            algorithm_constraint=algorithm_constraint
         )
         
         self.manager.save_and_log_states(prompt, "guideline_prompt.txt")
         return prompt
+    
+    def _get_algorithm_constraint(self, iteration_type: str | None) -> str:
+        """Get algorithm constraint based on iteration type."""
+        if iteration_type == "traditional":
+            return "IMPORTANT: YOU MUST USE TRADITIONAL ML ALGORITHMS: XGBoost, LightGBM, CatBoost, Linear regression, SVM, Bayes, ..."
+        elif iteration_type == "custom_nn":
+            return "IMPORTANT: YOU MUST BUILD CUSTOM NEURAL NETWORKS from scratch using PyTorch. "
+        elif iteration_type == "pretrained":
+            return "IMPORTANT: YOU MUST USE PRETRAINED MODELS"
+        else:
+            # Default for backward compatibility
+            return "None"
 
     def parse(self, response: str) -> Dict[str, Any]:
         """Parse JSON response from LLM."""

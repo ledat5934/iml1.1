@@ -41,7 +41,7 @@ Based on the context above, generate the complete and corrected Python code. The
 ## FINAL, CORRECTED CODE:
 """
 
-    def build(self, original_code: str, output_path: str, description: Dict, error_message: str = None) -> str:
+    def build(self, original_code: str, output_path: str, description: Dict, error_message: str = None, iteration_type: str = None) -> str:
         """Build prompt to assemble or fix code."""
         
         retry_context = ""
@@ -62,6 +62,12 @@ The code above failed with the following error.
 4.  If the error indicates a missing module (ModuleNotFoundError/ImportError), modify the final script to wrap critical imports in try/except and, in the except, call subprocess to install the missing package (e.g., `[sys.executable, '-m', 'pip', 'install', '<package>']` with `check=True`), then attempt the import again before proceeding.
 """
         
+        # Add iteration-specific assembly guidance
+        iteration_guidance = self._get_iteration_guidance(iteration_type)
+        if iteration_guidance:
+            additional_context = f"\n\n## ITERATION-SPECIFIC CONTEXT:\n{iteration_guidance}"
+            retry_context += additional_context
+        
         prompt = self.template.format(
             dataset_name=description.get('name', 'N/A'),
             file_paths=description.get('link to the dataset', []),
@@ -73,6 +79,33 @@ The code above failed with the following error.
         
         self.manager.save_and_log_states(prompt, "assembler_prompt.txt")
         return prompt
+    
+    def _get_iteration_guidance(self, iteration_type: str = None) -> str:
+        """Get iteration-specific assembly guidance."""
+        if iteration_type == "traditional":
+            return """
+This iteration focuses on Traditional ML algorithms (XGBoost, LightGBM, CatBoost):
+- Ensure proper handling of categorical variables for tree-based models
+"""
+        elif iteration_type == "custom_nn":
+            return """
+This iteration focuses on Custom Neural Networks:
+- Verify proper neural network architecture implementation
+- Ensure training loops with validation monitoring are correctly set up
+- Check that loss functions and optimizers are appropriate
+- Validate proper batch processing and data loading
+- Ensure model checkpointing and early stopping are implemented
+"""
+        elif iteration_type == "pretrained":
+            return """
+This iteration focuses on Pretrained Models:
+- Verify transfer learning implementation with correct layer freezing
+- Check that fine-tuning is properly configured
+- Validate model-specific preprocessing is maintained
+- Ensure proper adaptation for the target task
+"""
+        else:
+            return ""
 
     def parse(self, response: str) -> str:
         """Extract Python code from LLM response."""

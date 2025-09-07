@@ -33,7 +33,7 @@ class GuidelineAgent(BaseAgent):
             multi_turn=self.llm_config.get('multi_turn', False)
         )
 
-    def __call__(self) -> Dict[str, Any]:
+    def __call__(self, iteration_type=None) -> Dict[str, Any]:
         """
         Execute agent to create guideline.
         """
@@ -59,11 +59,13 @@ class GuidelineAgent(BaseAgent):
             description_analysis=description_analysis,
             profiling_result=profiling_result,
             model_suggestions=model_suggestions,
+            iteration_type=iteration_type,
         )
 
         # Call LLM
         response = self.llm.assistant_chat(prompt)
-        self.manager.save_and_log_states(response, "guideline_raw_response.txt")
+        iteration_suffix = f"_{iteration_type}" if iteration_type else ""
+        self.manager.save_and_log_states(response, f"guideline_raw_response{iteration_suffix}.txt")
 
         # Analyze results
         guideline = self.prompt_handler.parse(response)

@@ -26,7 +26,7 @@ class PreprocessingCoderAgent(BaseAgent):
         )
         self.max_retries = max_retries
 
-    def __call__(self) -> Dict[str, Any]:
+    def __call__(self, iteration_type=None) -> Dict[str, Any]:
         """
         Generate, execute and retry preprocessing code until successful or maximum retries exceeded.
         """
@@ -46,7 +46,8 @@ class PreprocessingCoderAgent(BaseAgent):
                 guideline=guideline,
                 description=description,
                 previous_code=code_to_execute,
-                error_message=error_message
+                error_message=error_message,
+                iteration_type=iteration_type
             )
 
             response = self.llm.assistant_chat(prompt)

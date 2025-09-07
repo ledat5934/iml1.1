@@ -22,19 +22,7 @@ This script will be combined with the provided preprocessing code that uses gene
 - **Data File Description**: {data_file_description}
 - **Output data format**: {output_data_format}
 
-## IMPORTANT DATA HANDLING
-The provided preprocessing code's `preprocess_data` function returns **a tuple of generators** (e.g., `train_gen, val_gen, test_gen`) to save memory. Your code must handle these generators efficiently. There are two primary ways to do this, depending on the model's capabilities:
-
-### Path 1: Incremental/Batch Training (PREFERRED METHOD)
-This is the most memory-efficient approach and should be your default choice.
-- **For scikit-learn**: Use models that support the `.partial_fit()` method (e.g., `SGDClassifier`, `MultinomialNB`, `PassiveAggressiveClassifier`).
-- **Logic**: You will iterate through the training generator, and for each batch of data, you will call `model.partial_fit(X_batch, y_batch)`.
-- **This method AVOIDS loading the entire dataset into memory.**
-
-### Path 2: Full Data Aggregation (FALLBACK METHOD)
-Use this method **ONLY IF** the model specified in the `MODELING_GUIDELINES` does **NOT** support incremental training (e.g., `RandomForestClassifier`, `SVC`, `KNeighborsClassifier`).
-- **Logic**: Iterate through the generators to collect all batches and aggregate them into a single large dataset in memory (e.g., using `pandas.concat` or `numpy.vstack`).
-- **Warning**: Acknowledge that this approach negates the memory-saving benefits of using generators and should only be a fallback.
+{data_handling_instruction}
 ## MODELING GUIDELINES:
 {modeling_guideline}
 
@@ -131,10 +119,19 @@ if __name__ == "__main__":
 ```
 """
 
-    def build(self, guideline: Dict, description: Dict, preprocessing_code: str, previous_code: str = None, error_message: str = None) -> str:
+    def build(self, guideline: Dict, description: Dict, preprocessing_code: str, previous_code: str = None, error_message: str = None, iteration_type: str = None) -> str:
         """Build prompt to generate modeling code."""
         
         modeling_guideline = guideline.get('modeling', {})
+        
+        # Add iteration-specific modeling guidance
+        iteration_guidance = self._get_iteration_guidance(iteration_type)
+        enhanced_guideline = json.dumps(modeling_guideline, indent=2)
+        if iteration_guidance:
+            enhanced_guideline += f"\n\n## ITERATION-SPECIFIC GUIDANCE:\n{iteration_guidance}"
+
+        # Get data handling instruction based on iteration type
+        data_handling = self._get_data_handling_instruction(iteration_type)
 
         prompt = self.template.format(
             dataset_name=description.get('name', 'N/A'),
@@ -143,8 +140,9 @@ if __name__ == "__main__":
             file_paths_main=description.get('link to the dataset', []),
             data_file_description=description.get('data file description', 'N/A'),
             output_data_format=description.get('output_data', 'N/A'),
-            modeling_guideline=json.dumps(modeling_guideline, indent=2),
-            preprocessing_code=preprocessing_code
+            modeling_guideline=enhanced_guideline,
+            preprocessing_code=preprocessing_code,
+            data_handling_instruction=data_handling
         )
 
         if previous_code and error_message:
@@ -175,6 +173,86 @@ Generate the corrected Python code:
         
         self.manager.save_and_log_states(prompt, "modeling_coder_prompt.txt")
         return prompt
+    
+    def _get_iteration_guidance(self, iteration_type: str = None) -> str:
+        """Get iteration-specific modeling guidance."""
+        if iteration_type == "traditional":
+            return """
+For Traditional ML algorithms (XGBoost, LightGBM, CatBoost):
+- Focus on feature importance analysis
+- Use early stopping for gradient boosting methods
+- Optimize for tabular data characteristics
+"""
+        elif iteration_type == "custom_nn":
+            return """
+For Custom Neural Networks:
+- Design NN architecture from scratch using PyTorch.
+- Include proper layer definitions (Dense, Dropout, BatchNormalization)
+- Implement training loop with validation monitoring
+- Use appropriate loss functions and optimizers (Adam, SGD)
+- Add learning rate scheduling and early stopping
+- Include model checkpointing for best weights
+- Handle overfitting with regularization techniques
+- Monitor training/validation loss curves
+"""
+        elif iteration_type == "pretrained":
+            return """
+For Pretrained Models:
+- Load and fine-tune pretrained models from Hugging Face or torchvision
+- Implement transfer learning approach with proper layer freezing/unfreezing
+- Use model-specific preprocessing and tokenization
+- Fine-tune with appropriate learning rates (often lower than training from scratch)
+- Handle model adaptation for target task (classification head modification)
+- Use pretrained model's specific data format requirements
+- Implement gradual unfreezing strategy if needed
+"""
+        else:
+            return ""
+    
+    def _get_data_handling_instruction(self, iteration_type: str = None) -> str:
+        """Get data handling instruction based on iteration type."""
+        if iteration_type == "traditional":
+            return """## IMPORTANT DATA HANDLING
+The provided preprocessing code's `preprocess_data` function returns **preprocessed DataFrames/arrays** (e.g., X_train, X_val, X_test, y_train, y_val, y_test) that are already loaded into memory. Your code should directly use these preprocessed datasets.
+
+### Data Usage:
+- **For traditional ML**: Use the preprocessed DataFrames/arrays directly with scikit-learn models
+- **Logic**: Call `X_train, X_val, X_test, y_train, y_val, y_test = preprocess_data(file_paths)` and use them directly
+- **Memory**: Data is already loaded into memory and ready for training"""
+        
+        elif iteration_type == "custom_nn":
+            return """## IMPORTANT DATA HANDLING
+The provided preprocessing code's `preprocess_data` function returns **a tuple of generators** (e.g., `train_gen, val_gen, test_gen`) to save memory. Your code must handle these generators efficiently for neural network training.
+
+### Batch Training for Neural Networks:
+- **For custom NN**: Use the generators in training loops with proper batching
+- **Logic**: Iterate through generators, get batches, and train the neural network incrementally
+- **Memory Efficiency**: This approach keeps memory usage low by processing data in batches"""
+        
+        elif iteration_type == "pretrained":
+            return """## IMPORTANT DATA HANDLING
+The provided preprocessing code's `preprocess_data` function returns **a tuple of generators** (e.g., `train_gen, val_gen, test_gen`) formatted for pretrained models. Your code must handle these generators efficiently.
+
+### Pretrained Model Data Handling:
+- **For pretrained models**: Use generators with model-specific data loaders (e.g., PyTorch DataLoader, HuggingFace datasets)
+- **Logic**: Convert generators to appropriate format for pretrained model training/fine-tuning
+- **Compatibility**: Ensure data format matches pretrained model requirements"""
+        
+        else:
+            # Default behavior (generators)
+            return """## IMPORTANT DATA HANDLING
+The provided preprocessing code's `preprocess_data` function returns **a tuple of generators** (e.g., `train_gen, val_gen, test_gen`) to save memory. Your code must handle these generators efficiently. There are two primary ways to do this, depending on the model's capabilities:
+
+### Path 1: Incremental/Batch Training (PREFERRED METHOD)
+This is the most memory-efficient approach and should be your default choice.
+- **For scikit-learn**: Use models that support the `.partial_fit()` method (e.g., `SGDClassifier`, `MultinomialNB`, `PassiveAggressiveClassifier`).
+- **Logic**: You will iterate through the training generator, and for each batch of data, you will call `model.partial_fit(X_batch, y_batch)`.
+- **This method AVOIDS loading the entire dataset into memory.**
+
+### Path 2: Full Data Aggregation (FALLBACK METHOD)
+Use this method **ONLY IF** the model specified in the `MODELING_GUIDELINES` does **NOT** support incremental training (e.g., `RandomForestClassifier`, `SVC`, `KNeighborsClassifier`).
+- **Logic**: Iterate through the generators to collect all batches and aggregate them into a single large dataset in memory (e.g., using `pandas.concat` or `numpy.vstack`).
+- **Warning**: Acknowledge that this approach negates the memory-saving benefits of using generators and should only be a fallback."""
 
     def parse(self, response: str) -> str:
         """Extract Python code from LLM response."""
