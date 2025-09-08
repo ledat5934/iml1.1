@@ -391,6 +391,43 @@ class Manager:
         self.output_folder = original_output_folder
         logger.info("Multi-Iteration AutoML Pipeline completed!")
     
+    def run_pipeline_single_iteration(self, iteration_type: str):
+        """Run the pipeline with a single specific iteration approach."""
+        logger.info(f"Starting Single-Iteration AutoML Pipeline ({iteration_type})...")
+        
+        # Run shared analysis steps once
+        logger.info("Running shared analysis steps...")
+        success = self._run_shared_analysis()
+        if not success:
+            return
+        
+        # Create iteration-specific output folder
+        iteration_info = {
+            "traditional": {"folder": "iteration_traditional", "description": "Traditional ML algorithms"},
+            "custom_nn": {"folder": "iteration_custom_nn", "description": "Custom Neural Networks"}, 
+            "pretrained": {"folder": "iteration_pretrained", "description": "Pretrained Models"}
+        }
+        
+        info = iteration_info.get(iteration_type, {"folder": f"iteration_{iteration_type}", "description": iteration_type})
+        iteration_output = os.path.join(self.output_folder, info['folder'])
+        os.makedirs(iteration_output, exist_ok=True)
+        
+        # Store original and temporarily change output folder
+        original_output_folder = self.output_folder
+        self.output_folder = iteration_output
+        
+        logger.info(f"=== Running {info['description']} ===")
+        
+        # Run iteration-specific pipeline
+        success = self._run_iteration_pipeline(iteration_type)
+        if success:
+            logger.info(f"Single-iteration pipeline ({iteration_type}) completed successfully!")
+        else:
+            logger.error(f"Single-iteration pipeline ({iteration_type}) failed!")
+        
+        # Restore original output folder
+        self.output_folder = original_output_folder
+    
     def _run_shared_analysis(self):
         """Run the shared analysis steps (description, profiling, summarization, model retrieval)."""
         # Step 1: Run description analysis agent

@@ -22,7 +22,7 @@ def timeout_handler(signum, frame):
     logger.error("Pipeline execution timed out.")
     raise PipelineTimeoutError("Pipeline execution exceeded the time limit.")
 
-def run_automl_pipeline(input_data_folder: str, output_folder: str = None, config_path: str = "configs/default.yaml", checkpoint_mode: str = "full", checkpoint_action: str = "run"):
+def run_automl_pipeline(input_data_folder: str, output_folder: str = None, config_path: str = "configs/default.yaml", checkpoint_mode: str = "full", checkpoint_action: str = "run", single_iteration: str = None):
     """
     Main function to set up the environment and run the entire pipeline.
     
@@ -78,7 +78,11 @@ def run_automl_pipeline(input_data_folder: str, output_folder: str = None, confi
 
         # 5. Start the pipeline run based on checkpoint mode
         if checkpoint_mode == "full":
-            manager.run_pipeline()
+            if single_iteration:
+                # Run single iteration with specified approach
+                manager.run_pipeline_single_iteration(single_iteration)
+            else:
+                manager.run_pipeline()
         elif checkpoint_mode == "multi-iteration":
             manager.run_pipeline_multi_iteration()
         elif checkpoint_mode == "partial":

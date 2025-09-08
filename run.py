@@ -41,6 +41,12 @@ def main():
         default="guideline",
         help="For partial mode: where to stop ('description', 'profiling', 'guideline'). For resume mode: where to start ('preprocessing', 'modeling', 'assembler')"
     )
+    parser.add_argument(
+        "--single-iteration",
+        choices=["traditional", "custom_nn", "pretrained"],
+        default=None,
+        help="Run only a single iteration approach: 'traditional' (XGBoost, LightGBM), 'custom_nn' (PyTorch), or 'pretrained' (HuggingFace models)"
+    )
     
     args = parser.parse_args()
     
@@ -51,6 +57,7 @@ def main():
         config_path=args.config,
         checkpoint_mode=args.checkpoint_mode,
         checkpoint_action=args.checkpoint_action,
+        single_iteration=args.single_iteration,
     )
 
 if __name__ == "__main__":
