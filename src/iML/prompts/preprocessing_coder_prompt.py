@@ -171,14 +171,15 @@ For Custom Neural Networks:
 """
         elif iteration_type == "pretrained":
             return """
-For Pretrained Models:
+For Pretrained Models (preferably PyTorch-based):
 - Format data to match pretrained model input requirements
-- For text: prepare tokenization compatible with model tokenizer
-- For images: resize and normalize according to model specifications
+- For text: prepare tokenization compatible with HuggingFace tokenizers (PyTorch format)
+- For images: resize and normalize according to model specifications (torchvision transforms)
 - For tabular: extract features suitable for pretrained embeddings
-- Maintain original data structure when possible for transfer learning
+- Use PyTorch tensors and data loaders when possible
 - Handle special tokens or formatting required by pretrained models
 - Ensure data preprocessing matches pretrained model's training format
+- Prefer HuggingFace datasets and transformers library (PyTorch backend)
 """
         else:
             return ""

@@ -197,14 +197,17 @@ For Custom Neural Networks:
 """
         elif iteration_type == "pretrained":
             return """
-For Pretrained Models:
-- Load and fine-tune pretrained models from Hugging Face or torchvision
+For Pretrained Models (prioritize PyTorch):
+- Load and fine-tune pretrained models (PyTorch backend preferred)
+- Use transformers library with PyTorch backend for text models
+- Use torchvision for vision models (ResNet, ViT, etc.)
 - Implement transfer learning approach with proper layer freezing/unfreezing
-- Use model-specific preprocessing and tokenization
+- Use HuggingFace tokenizers and PyTorch data loaders
 - Fine-tune with appropriate learning rates (often lower than training from scratch)
 - Handle model adaptation for target task (classification head modification)
-- Use pretrained model's specific data format requirements
+- Use PyTorch-specific optimizers and schedulers
 - Implement gradual unfreezing strategy if needed
+- Prefer torch.nn.functional and PyTorch ecosystem
 """
         else:
             return ""
@@ -233,10 +236,12 @@ The provided preprocessing code's `preprocess_data` function returns **a tuple o
             return """## IMPORTANT DATA HANDLING
 The provided preprocessing code's `preprocess_data` function returns **a tuple of generators** (e.g., `train_gen, val_gen, test_gen`) formatted for pretrained models. Your code must handle these generators efficiently.
 
-### Pretrained Model Data Handling:
-- **For pretrained models**: Use generators with model-specific data loaders (e.g., PyTorch DataLoader, HuggingFace datasets)
-- **Logic**: Convert generators to appropriate format for pretrained model training/fine-tuning
-- **Compatibility**: Ensure data format matches pretrained model requirements"""
+### Pretrained Model Data Handling (PyTorch preferred):
+- **For pretrained models**: Use generators with PyTorch DataLoader and HuggingFace datasets
+- **Logic**: Convert generators to PyTorch DataLoader format for efficient batching
+- **PyTorch Integration**: Use torch.utils.data.DataLoader, transformers.Trainer, or custom PyTorch training loops
+- **HuggingFace**: Prefer transformers library with PyTorch backend over TensorFlow
+- **Compatibility**: Ensure data format matches PyTorch tensor requirements and model input specifications"""
         
         else:
             # Default behavior (generators)
