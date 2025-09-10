@@ -1,5 +1,5 @@
-pipeline_timeout: 7200
-per_execution_timeout: 7200
+pipeline_timeout: 28800
+per_execution_timeout: 28800
 
 # Data Perception
 max_file_group_size_to_show: 5
