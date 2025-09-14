@@ -23,11 +23,12 @@ class ComparisonPrompt(BasePrompt):
 {iteration_results_formatted}
 
 ## Your Analysis Task:
-1. **Evaluate Performance**: Analyze all available metrics for each iteration
-2. **Consider Task Type**: Weight metrics appropriately based on the ML task (classification vs regression)
-3. **Assess Reliability**: Consider execution stability, error rates, and consistency
-4. **Evaluate Complexity**: Balance performance with code complexity and maintainability
-5. **Make Final Ranking**: Select the best iteration with detailed reasoning
+1. **Extract Performance Metrics**: Find and extract validation scores, CV scores, accuracy, F1, RMSE, etc. from each iteration's execution output
+2. **Evaluate Performance**: Compare the extracted metrics for each iteration
+3. **Consider Task Type**: Weight metrics appropriately based on the ML task (classification vs regression)
+4. **Assess Reliability**: Consider execution stability, error rates, and consistency
+5. **Evaluate Complexity**: Balance performance with code complexity and maintainability
+6. **Make Final Ranking**: Select the best iteration with detailed reasoning based on extracted scores
 
 ## Evaluation Criteria (in order of importance):
 1. **Primary Performance**: Task-relevant metrics (accuracy/F1 for classification, RMSE/MAE for regression)
@@ -147,14 +148,8 @@ Provide your analysis in the following JSON format:
             section = f"""
 ### {name.upper()}
 **Status**: {status}
-**Performance Metrics**:
-"""
-            
-            if scores:
-                for metric, value in scores.items():
-                    section += f"  - {metric}: {value}\n"
-            else:
-                section += "  - No performance metrics found\n"
+**Raw Output Analysis**:
+Please extract validation scores, accuracy, F1, RMSE, etc. from the execution output below.
             
             section += f"""
 **Execution Statistics**:
@@ -173,8 +168,10 @@ Provide your analysis in the following JSON format:
             if error:
                 section += f"\n**Error Details**: {error}\n"
             
-            # Add stdout excerpt if available
-            if result.get('stdout_excerpt'):
+            # Add full stdout for LLM analysis
+            if result.get('full_stdout'):
+                section += f"\n**Complete Execution Output**:\n```\n{result['full_stdout']}\n```\n"
+            elif result.get('stdout_excerpt'):
                 section += f"\n**Output Excerpt**:\n```\n{result['stdout_excerpt']}\n```\n"
             
             # Add stderr excerpt if available

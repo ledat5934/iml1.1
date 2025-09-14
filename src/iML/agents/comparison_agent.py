@@ -76,75 +76,8 @@ class IterationResultExtractor:
     """Extract comprehensive results from iteration folders for LLM analysis."""
     
     def __init__(self):
-        self.score_patterns = {
-            # Comprehensive score patterns
-            'accuracy': [
-                r'[Aa]ccuracy\s*[:\-=]\s*([\d\.]+)',
-                r'acc\s*[:\-=]\s*([\d\.]+)'
-            ],
-            'precision': [
-                r'[Pp]recision\s*[:\-=]\s*([\d\.]+)',
-                r'prec\s*[:\-=]\s*([\d\.]+)'
-            ],
-            'recall': [
-                r'[Rr]ecall\s*[:\-=]\s*([\d\.]+)',
-                r'rec\s*[:\-=]\s*([\d\.]+)'
-            ],
-            'f1_score': [
-                r'F1[_\-\s]*[Ss]core\s*[:\-=]\s*([\d\.]+)',
-                r'f1[_\-\s]*score\s*[:\-=]\s*([\d\.]+)',
-                r'F1\s*[:\-=]\s*([\d\.]+)'
-            ],
-            'roc_auc': [
-                r'ROC[_\-\s]*AUC\s*[:\-=]\s*([\d\.]+)',
-                r'roc[_\-\s]*auc\s*[:\-=]\s*([\d\.]+)',
-                r'AUC\s*[:\-=]\s*([\d\.]+)'
-            ],
-            'cv_score': [
-                r'CV\s*[Ss]core\s*[:\-=]\s*([\d\.]+)',
-                r'Cross[_\-\s]*[Vv]alidation\s*[Ss]core\s*[:\-=]\s*([\d\.]+)',
-                r'Mean\s*CV\s*[:\-=]\s*([\d\.]+)',
-                r'cv_scores\.mean\(\)\s*[:\-=]\s*([\d\.]+)'
-            ],
-            'rmse': [
-                r'RMSE\s*[:\-=]\s*([\d\.]+)',
-                r'rmse\s*[:\-=]\s*([\d\.]+)',
-                r'Root\s*Mean\s*Squared\s*Error\s*[:\-=]\s*([\d\.]+)'
-            ],
-            'mae': [
-                r'MAE\s*[:\-=]\s*([\d\.]+)',
-                r'mae\s*[:\-=]\s*([\d\.]+)',
-                r'Mean\s*Absolute\s*Error\s*[:\-=]\s*([\d\.]+)'
-            ],
-            'mse': [
-                r'MSE\s*[:\-=]\s*([\d\.]+)',
-                r'mse\s*[:\-=]\s*([\d\.]+)',
-                r'Mean\s*Squared\s*Error\s*[:\-=]\s*([\d\.]+)'
-            ],
-            'r2_score': [
-                r'R2\s*[Ss]core\s*[:\-=]\s*([\d\.]+)',
-                r'r2\s*[:\-=]\s*([\d\.]+)',
-                r'R[²2]\s*[:\-=]\s*([\d\.]+)'
-            ]
-        }
-    
-    def extract_scores_from_text(self, text: str) -> Dict[str, float]:
-        """Extract all possible scores from text."""
-        import re
-        scores = {}
-        
-        for metric, patterns in self.score_patterns.items():
-            for pattern in patterns:
-                matches = re.findall(pattern, text, re.IGNORECASE)
-                if matches:
-                    try:
-                        # Take the last match (usually the final score)
-                        scores[metric] = float(matches[-1])
-                        break
-                    except ValueError:
-                        continue
-        
-        return scores
+        # No more regex patterns needed - LLM will extract scores from raw output
+        pass
     
     def extract_execution_stats(self, iteration_path: Path) -> Dict[str, Any]:
         """Extract execution statistics and metadata."""
@@ -261,9 +194,10 @@ class IterationResultExtractor:
                         logger.warning(f"Could not read {stdout_file}: {e}")
             
             if all_stdout:
-                result["scores"] = self.extract_scores_from_text(all_stdout)
-                # Keep last 500 chars of stdout for LLM context
-                result["stdout_excerpt"] = all_stdout[-500:] if len(all_stdout) > 500 else all_stdout
+                # Keep full stdout for LLM to analyze - no need for regex parsing
+                result["full_stdout"] = all_stdout
+                # Keep last 1000 chars for summary display
+                result["stdout_excerpt"] = all_stdout[-1000:] if len(all_stdout) > 1000 else all_stdout
             
             # Extract stderr excerpt  
             stderr_files = [f.replace("stdout.txt", "stderr.txt") for f in stdout_files]
@@ -293,9 +227,7 @@ class IterationResultExtractor:
                 if file_path != submission_file:
                     result["output_files"].append(str(file_path.relative_to(iteration_path)))
                     
-            if not result["scores"]:
-                result["status"] = "completed_no_scores"
-                result["error"] = "Execution completed but no performance scores found"
+            # Remove the scores requirement check - LLM will extract scores from stdout
                 
         except Exception as e:
             result["status"] = "failed"
