@@ -13,7 +13,7 @@ class AssemblerAgent(BaseAgent):
     """
     Agent to assemble, finalize, execute and fix final code.
     """
-    def __init__(self, config: Dict, manager: Any, llm_config: Dict, max_retries: int = 5):
+    def __init__(self, config: Dict, manager: Any, llm_config: Dict, max_retries: int = 10):
         super().__init__(config, manager)
         self.llm_config = llm_config
         self.llm = init_llm(
