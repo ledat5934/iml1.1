@@ -39,6 +39,12 @@ class GuidelinePrompt(BasePrompt):
 {variables_summary_str}
 ```
 
+## IMPORTANT CONSTRAINTS FOR REPRODUCIBILITY:
+- ALWAYS use random_state=42 for ALL random operations (train_test_split, cross_validation, model initialization)
+- Use simple random split strategy for train/test splitting
+- Implement 3-fold cross-validation for model evaluation
+- Return mean validation score across 3 folds
+
 ## Guideline Generation Principles & Examples
 Your response must be guided by the following principles. Refer to these examples to understand the required level of detail.
 
@@ -89,18 +95,20 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
     "modeling": {{
         "recommended_algorithms": ["one most suitable algorithm"],
         "model_selection": ["model_name1"](pretrained model name if using pretrained model),
-        "cross_validation": {{"method": appropriate method, "scoring": appropriate metric}}
+        "cross_validation": {{"method": "3-fold", "scoring": "appropriate metric"}},
+        "eval_metrics": [],
+        "random_state": 42
     }},
     "preprocessing": {{
         "data_cleaning": ["specific step 1", "specific step 2"],
         "feature_engineering": ["specific technique 1", "specific technique 2"],
         "missing_values": ["strategy 1", "strategy 2"],
         "feature_selection": ["method 1", "method 2"],
-        "data_splitting": {{"train": 0.8, "val": 0.2, "strategy": "appropriate strategy"}}
+        "data_splitting": {{"train": 0.8, "val": 0.2, "strategy": "simple_random", "random_state": 42}}
     }},
     "evaluation": {{
         "metrics": ["metric 1", "metric 2"],
-        "validation_strategy": ["approach 1", "approach 2"],
+        "validation_strategy": ["3-fold cross-validation"],
         "performance_benchmarking": ["baseline 1", "baseline 2"],
         "result_interpretation": ["interpretation 1", "interpretation 2"]
     }}

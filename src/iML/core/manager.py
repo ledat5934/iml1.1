@@ -2,8 +2,11 @@ import logging
 import os
 import uuid
 import subprocess
+import json
+import shutil
 from pathlib import Path
 from typing import List
+from datetime import datetime
 
 from ..agents import (
     DescriptionAnalyzerAgent,
@@ -14,7 +17,9 @@ from ..agents import (
     PreprocessingCoderAgent,
     ModelingCoderAgent,
     AssemblerAgent,
+    ComparisonAgent,
 )
+from ..agents.comparison_agent import IterationResultExtractor
 from ..llm import ChatLLMFactory
 
 # Basic configuration
@@ -87,6 +92,11 @@ class Manager:
             config=config,
             manager=self,
             llm_config=self.config.assembler,
+        )
+        self.comparison_agent = ComparisonAgent(
+            config=config,
+            manager=self,
+            llm_config=self.config.assembler,  # Using same LLM config as assembler
         )
 
         self.context = {
@@ -369,12 +379,14 @@ class Manager:
             return
             
         # Run each iteration
+        iteration_paths = []
         for i, iteration in enumerate(iterations, 1):
             logger.info(f"=== Starting Iteration {i}: {iteration['description']} ===")
             
             # Create iteration-specific output folder
             iteration_output = os.path.join(original_output_folder, iteration['folder'])
             os.makedirs(iteration_output, exist_ok=True)
+            iteration_paths.append(iteration_output)
             
             # Temporarily change output folder for this iteration
             self.output_folder = iteration_output
@@ -383,14 +395,133 @@ class Manager:
             success = self._run_iteration_pipeline(iteration['name'])
             if not success:
                 logger.error(f"Iteration {i} ({iteration['name']}) failed!")
-                continue
-                
-            logger.info(f"=== Iteration {i} completed successfully ===")
+            else:
+                logger.info(f"=== Iteration {i} completed successfully ===")
         
         # Restore original output folder
         self.output_folder = original_output_folder
+        
+        # Extract comprehensive results from all iterations
+        logger.info("=== Extracting results from all iterations ===")
+        extractor = IterationResultExtractor()
+        iteration_results = []
+        
+        for iteration_path in iteration_paths:
+            result = extractor.extract_from_iteration_folder(iteration_path)
+            iteration_results.append(result)
+            logger.info(f"Extracted results from {result['iteration_name']}: {result['status']}")
+        
+        # Use LLM to intelligently compare and rank iterations
+        logger.info("=== LLM-based Intelligent Iteration Comparison ===")
+        comparison_result = self.comparison_agent(
+            iteration_results=iteration_results,
+            original_task_description=self.description_analysis
+        )
+        
+        if "error" in comparison_result:
+            logger.error(f"LLM comparison failed: {comparison_result['error']}")
+            logger.info("Falling back to basic selection...")
+            best_iteration_name = self._fallback_selection(iteration_results)
+        else:
+            best_iteration_name = comparison_result.get('best_iteration', {}).get('name')
+            
+            # Save detailed comparison report
+            comparison_file = os.path.join(original_output_folder, "llm_comparison_results.json")
+            with open(comparison_file, 'w', encoding='utf-8') as f:
+                json.dump(comparison_result, f, indent=2, ensure_ascii=False)
+            logger.info(f"LLM comparison report saved to: {comparison_file}")
+        
+        # Copy best submission to final_submission folder
+        if best_iteration_name:
+            best_iteration_path = os.path.join(original_output_folder, best_iteration_name)
+            success = self._copy_best_submission(best_iteration_path, original_output_folder)
+            
+            if success:
+                logger.info(f"✅ Best submission copied from {best_iteration_name}")
+                if "error" not in comparison_result:
+                    logger.info(f"📊 LLM Reasoning: {comparison_result.get('reasoning_summary', 'No reasoning provided')}")
+            else:
+                logger.error("❌ Failed to copy best submission")
+        else:
+            logger.error("❌ No best iteration selected")
+        
+        # Print summary
+        successful_count = len([r for r in iteration_results if r.get('status') == 'success'])
+        logger.info(f"📈 Summary: {successful_count}/{len(iterations)} iterations successful")
+        if best_iteration_name:
+            logger.info(f"🏆 LLM Selected Winner: {best_iteration_name}")
+        
         logger.info("Multi-Iteration AutoML Pipeline completed!")
     
+    def _fallback_selection(self, iteration_results: List[Dict]) -> str:
+        """Fallback selection method when LLM comparison fails."""
+        # Simple fallback: prefer successful iterations in priority order
+        priority_order = ["iteration_3_pretrained", "iteration_2_custom_nn", "iteration_1_traditional"]
+        
+        successful_iterations = [
+            r for r in iteration_results 
+            if r.get('status') == 'success'
+        ]
+        
+        if not successful_iterations:
+            logger.warning("No successful iterations found for fallback selection")
+            return None
+        
+        # Select based on priority order
+        for preferred_name in priority_order:
+            for iteration in successful_iterations:
+                if preferred_name in iteration.get('iteration_name', ''):
+                    logger.info(f"Fallback selected: {iteration['iteration_name']}")
+                    return iteration['iteration_name']
+        
+        # If no match, select first successful
+        first_successful = successful_iterations[0]['iteration_name']
+        logger.info(f"Fallback selected first successful: {first_successful}")
+        return first_successful
+    
+    def _copy_best_submission(self, source_iteration_path: str, target_folder: str) -> bool:
+        """Copy the best submission to final_submission folder."""
+        try:
+            source_path = Path(source_iteration_path)
+            target_path = Path(target_folder) / "final_submission"
+            
+            # Create target directory
+            target_path.mkdir(parents=True, exist_ok=True)
+            
+            # Copy submission.csv
+            source_submission = source_path / "submission.csv"
+            target_submission = target_path / "submission.csv"
+            
+            if source_submission.exists():
+                shutil.copy2(source_submission, target_submission)
+                logger.info(f"Copied best submission from {source_submission} to {target_submission}")
+                
+                # Also copy the final executable code for reference
+                source_code = source_path / "states" / "final_executable_code.py"
+                if source_code.exists():
+                    target_code = target_path / "final_executable_code.py"
+                    shutil.copy2(source_code, target_code)
+                    logger.info(f"Copied final code to {target_code}")
+                
+                # Copy comparison metadata
+                metadata = {
+                    "source_iteration": source_path.name,
+                    "copied_at": datetime.now().isoformat(),
+                    "files_copied": ["submission.csv", "final_executable_code.py"]
+                }
+                metadata_file = target_path / "selection_metadata.json"
+                with open(metadata_file, 'w', encoding='utf-8') as f:
+                    json.dump(metadata, f, indent=2, ensure_ascii=False)
+                
+                return True
+            else:
+                logger.error(f"Source submission file not found: {source_submission}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error copying best submission: {e}")
+            return False
+
     def run_pipeline_single_iteration(self, iteration_type: str):
         """Run the pipeline with a single specific iteration approach."""
         logger.info(f"Starting Single-Iteration AutoML Pipeline ({iteration_type})...")

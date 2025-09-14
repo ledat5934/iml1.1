@@ -69,14 +69,30 @@ python run.py -i <path_to_data_folder> -c <path_to_config_file> -o <path_to_outp
 
 * `-o` or `--output` (optional): Specifies the path to the directory wherein the results are to be saved. In the absence of this argument, a new directory will be programmatically generated within the `runs/` folder, named according to the format `run_<datetime>_<uuid>`.
 
+* `--checkpoint-mode` (optional): Pipeline execution mode:
+  - `full` (default): Complete single-solution run
+  - `multi-iteration`: Run 3 iterations with different algorithm approaches  
+  - `partial`: Stop at a specific checkpoint for manual intervention
+  - `resume`: Continue from a previous checkpoint
+
+* `--single-iteration` (optional): Run only a specific iteration approach:
+  - `traditional`: XGBoost, LightGBM, CatBoost algorithms
+  - `custom_nn`: Custom PyTorch neural networks
+  - `pretrained`: HuggingFace pretrained models
+
+* `--checkpoint-action` (optional): For checkpoint modes - where to stop/start (see Checkpoint Guide)
+
 ### Complete Example
 
 ```bash
 # Step 1: Set up API key
 export GEMINI_API_KEY="your_actual_api_key_here"
 
-# Step 2: Run the AutoML pipeline
+# Step 2: Run the AutoML pipeline (single solution)
 python run.py -i ./datasets/steel_plate_defect -c configs/default.yaml
+
+# Step 3: Run Multi-Iteration AutoML (3 different approaches)
+python run.py --checkpoint-mode multi-iteration -i ./datasets/steel_plate_defect
 
 # Alternative: Use different LLM provider
 # For OpenAI:
@@ -85,6 +101,71 @@ python run.py -i ./datasets/steel_plate_defect -c configs/openai_config.yaml
 ```
 
 The execution of the aforementioned commands will initiate the AutoML pipeline for the dataset situated at `./datasets/steel_plate_defect`. All resulting artifacts will be stored in a newly created directory within the `runs/` folder.
+
+### Multi-Iteration AutoML (Advanced)
+
+The **Multi-Iteration AutoML** mode is an advanced feature that automatically generates and compares **3 different solution approaches** for your ML problem:
+
+#### Iteration Types:
+1. **Traditional ML** (`iteration_1_traditional`): XGBoost, LightGBM, CatBoost algorithms
+2. **Custom Neural Networks** (`iteration_2_custom_nn`): PyTorch-based custom architectures  
+3. **Pretrained Models** (`iteration_3_pretrained`): HuggingFace transformers and pretrained models
+
+#### Key Features:
+- **Shared Data Analysis**: All iterations use the same data profiling and feature analysis
+- **Consistent Reproducibility**: All approaches use `random_state=42` and same train/test splits
+- **3-Fold Cross-Validation**: Each iteration implements 3-fold CV for reliable evaluation
+- **LLM-Based Intelligent Comparison**: Advanced AI agent analyzes and ranks all solutions
+- **Automatic Best Selection**: The system copies the best-performing solution to `final_submission/`
+
+#### Usage:
+
+**Option 1: Simplified Script (Recommended)**
+```bash
+# Check if everything is set up correctly
+python check_setup.py
+
+# Run all 3 iterations and get the best solution automatically
+python run_multi_iteration.py -i ./your_dataset
+
+# Run only a specific iteration type
+python run_multi_iteration.py -i ./your_dataset --single traditional
+python run_multi_iteration.py -i ./your_dataset --single custom_nn
+python run_multi_iteration.py -i ./your_dataset --single pretrained
+```
+
+**Option 2: Full Control Script**
+```bash
+# Run all 3 iterations using main script
+python run.py --checkpoint-mode multi-iteration -i ./your_dataset
+
+# Run single iteration approaches
+python run.py --single-iteration traditional -i ./your_dataset
+python run.py --single-iteration custom_nn -i ./your_dataset  
+python run.py --single-iteration pretrained -i ./your_dataset
+```
+
+#### Output Structure:
+```
+runs/run_<timestamp>/
+├── iteration_1_traditional/     # Traditional ML solution
+│   ├── submission.csv
+│   └── states/final_executable_code.py
+├── iteration_2_custom_nn/       # Custom NN solution  
+├── iteration_3_pretrained/      # Pretrained model solution
+├── llm_comparison_results.json  # Detailed LLM analysis & ranking
+└── final_submission/            # Best solution (auto-selected)
+    ├── submission.csv           # Best submission file
+    ├── final_executable_code.py # Best solution code
+    └── selection_metadata.json  # Selection details
+```
+
+#### LLM-Based Intelligent Selection:
+- **Performance Analysis**: Compares accuracy, F1-score, RMSE, etc. based on task type
+- **Reliability Assessment**: Considers execution stability and error rates
+- **Complexity Evaluation**: Balances performance vs code complexity
+- **Business Context**: Factors in interpretability requirements
+- **Detailed Reasoning**: Provides comprehensive justification for selection
 
 ### Configuration Files
 

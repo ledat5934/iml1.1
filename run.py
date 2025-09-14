@@ -13,7 +13,28 @@ def main():
     Main entry point for the application when run from the terminal.
     Parses input arguments and calls the main pipeline.
     """
-    parser = argparse.ArgumentParser(description="iML")
+    parser = argparse.ArgumentParser(
+        description="iML: Intelligent Machine Learning AutoML Framework",
+        epilog="""
+Examples:
+  # Basic AutoML run
+  python run.py -i ./my_dataset
+  
+  # Multi-iteration mode (3 different approaches)
+  python run.py --checkpoint-mode multi-iteration -i ./my_dataset
+  
+  # Single iteration with specific algorithm type
+  python run.py --single-iteration traditional -i ./my_dataset
+  
+  # Use different LLM provider
+  python run.py -i ./my_dataset -c configs/openai_config.yaml
+  
+  # Checkpoint workflow - stop at guideline for manual editing
+  python run.py --checkpoint-mode partial --checkpoint-action guideline -i ./dataset
+  python run.py --checkpoint-mode resume --checkpoint-action preprocessing -o ./previous_run
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     
     parser.add_argument(
         "-i", "--input", 

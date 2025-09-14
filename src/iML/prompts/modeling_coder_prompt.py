@@ -50,6 +50,11 @@ The following preprocessing code, including a function `preprocess_data(file_pat
 10. The submission file must have the same structure (number of columns) as the sample submission file provided in the dataset, but may have different ID. You have to use the test data to generate predictions and your right submission file. In some cases, you must browse the test image folder to get the IDs and data.
 11. Your final COMPLETE Python code should have only ONE main function. If there are duplicate main function, remove the duplicates and keep only one main function.
 12. Sample submission file given is for template reference (Columns) only. You have to use the test data or test file to generate predictions and your right submission file. In some cases, you must browse the test image folder to get the IDs and data.
+13. **REPRODUCIBILITY & VALIDATION**: 
+    - Always use random_state=42 for ALL random operations (model initialization, cross-validation splits, etc.)
+    - Implement 3-fold cross-validation to evaluate the model
+    - Print the mean CV score in the format: "CV Score: <score_value>"
+    - Use the evaluation metrics specified in the modeling guidelines
 
 
 ## CODE STRUCTURE EXAMPLE:
@@ -58,6 +63,7 @@ The following preprocessing code, including a function `preprocess_data(file_pat
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import SGDClassifier # Example model that supports partial_fit
+from sklearn.model_selection import cross_val_score
 import sys
 import os
 
@@ -87,7 +93,20 @@ def train_and_predict(train_gen, test_gen):
     X_test = pd.concat(X_test_list) if isinstance(X_test_list[0], pd.DataFrame) else np.vstack(X_test_list)
     test_ids = np.concatenate(test_ids_list)
 
-    # 3. Make predictions
+    # 3. Perform 3-fold cross-validation for evaluation
+    # Note: For incremental models, we need to aggregate training data for CV
+    print("Performing 3-fold cross-validation...")
+    X_train_list, y_train_list = zip(*[(X_batch, y_batch) for X_batch, y_batch in train_gen])
+    X_train_full = pd.concat(X_train_list) if isinstance(X_train_list[0], pd.DataFrame) else np.vstack(X_train_list)
+    y_train_full = np.concatenate(y_train_list)
+    
+    # Create a fresh model for CV (same type, same random_state)
+    cv_model = SGDClassifier(random_state=42)
+    cv_scores = cross_val_score(cv_model, X_train_full, y_train_full, cv=3, scoring='accuracy')
+    mean_cv_score = cv_scores.mean()
+    print(f"CV Score: {mean_cv_score:.4f}")
+    
+    # 4. Make predictions
     predictions = model.predict(X_test)
     
     return predictions, test_ids
