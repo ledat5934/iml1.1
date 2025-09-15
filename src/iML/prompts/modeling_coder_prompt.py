@@ -102,9 +102,10 @@ def train_and_predict(train_gen, test_gen):
     
     # Create a fresh model for CV (same type, same random_state)
     cv_model = SGDClassifier(random_state=42)
-    cv_scores = cross_val_score(cv_model, X_train_full, y_train_full, cv=3, scoring='accuracy')
-    mean_cv_score = cv_scores.mean()
-    print(f"CV Score: {{mean_cv_score:.4f}}")
+    cv_scores = cross_val_score(cv_model, X_train_full, y_train_full, cv=3, scoring='accuracy'(replace this with the appropriate scoring metric))
+    mean_cv_score = cv_scores.mean() (Replace this with the appropriate scoring metric)
+    print(f"CV Score: {{mean_cv_score:.4f}}") (Replace this with the appropriate scoring metric)
+
     
     # 4. Make predictions
     predictions = model.predict(X_test)
