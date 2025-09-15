@@ -150,8 +150,7 @@ Provide your analysis in the following JSON format:
 **Status**: {status}
 **Raw Output Analysis**:
 Please extract validation scores, accuracy, F1, RMSE, etc. from the execution output below.
-            
-            section += f"""
+
 **Execution Statistics**:
   - Number of attempts: {exec_stats.get('num_attempts', 'unknown')}
   - Final attempt: {exec_stats.get('final_attempt', 'unknown')}
