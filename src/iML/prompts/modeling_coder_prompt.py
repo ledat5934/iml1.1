@@ -133,6 +133,7 @@ For Custom Neural Networks:
 - Include model checkpointing for best weights
 - Handle overfitting with regularization techniques
 - Monitor training/validation loss curves
+- Use epoch = 15 with early stopping = 3
 """
         elif iteration_type == "pretrained":
             return """
@@ -147,6 +148,7 @@ For Pretrained Models (prioritize PyTorch):
 - Use PyTorch-specific optimizers and schedulers
 - Implement gradual unfreezing strategy if needed
 - Prefer torch.nn.functional and PyTorch ecosystem
+- Use epoch = 15 with early stopping = 3
 """
         else:
             return ""
