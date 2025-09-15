@@ -21,6 +21,7 @@ This script will be combined with the provided preprocessing code.
 - **File Paths**: {file_paths} (LOAD DATA FROM THESE PATHS)
 - **Data File Description**: {data_file_description}
 - **Output data format**: {output_data_format}
+- **Submission file description**: {submission_file_description}
 
 {data_handling_instruction}
 ## MODELING GUIDELINES:
@@ -80,7 +81,8 @@ The following preprocessing code, including a function `preprocess_data(file_pat
             output_data_format=description.get('output_data', 'N/A'),
             modeling_guideline=enhanced_guideline,
             preprocessing_code=preprocessing_code,
-            data_handling_instruction=data_handling
+            data_handling_instruction=data_handling,
+            submission_file_description=description.get('submission file description', 'N/A')
         )
 
         if previous_code and error_message:
