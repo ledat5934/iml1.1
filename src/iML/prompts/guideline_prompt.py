@@ -33,6 +33,7 @@ class GuidelinePrompt(BasePrompt):
 - Size: {n_rows:,} rows, {n_cols} columns
 - Key Quality Alerts: {alerts}
 - Output format: {output_data}
+- Submission file description: {submission_file_description}
 
 ## Variables Analysis Summary:
 ```json
@@ -125,7 +126,7 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
         dataset_name = task_info.get('name', 'N/A')
         task_desc = task_info.get('task', 'N/A')
         output_data = task_info.get('output_data', 'N/A')
-
+        submission_file_description = task_info.get('submission file description', 'N/A')
         n_rows = 0
         n_cols = 0
         alerts_out = []
@@ -210,6 +211,7 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
             alerts=alerts_out if alerts_out else 'None',
             variables_summary_str=variables_summary_str,
             output_data=output_data,
+            submission_file_description=submission_file_description,
             model_suggestions_str=model_suggestions_str,
             algorithm_constraint=algorithm_constraint
         )
