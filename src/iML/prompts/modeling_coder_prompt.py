@@ -13,7 +13,7 @@ class ModelingCoderPrompt(BasePrompt):
         """Default template to request LLM to generate modeling code."""
         return """
 You are an expert ML engineer. Your task is to generate a COMPLETE and EXECUTABLE Python script for modeling.
-This script will be combined with the provided preprocessing code that uses generators.
+This script will be combined with the provided preprocessing code.
 
 ## CONTEXT
 - **Dataset Name**: {dataset_name}
@@ -35,108 +35,26 @@ The following preprocessing code, including a function `preprocess_data(file_pat
 
 ## REQUIREMENTS:
 1.  **Generate COMPLETE Python code for the modeling part ONLY.** Do NOT repeat the preprocessing code.
-2.  Your code should start with necessary imports for modeling (e.g., `import pandas as pd`, `from sklearn.ensemble import RandomForestClassifier`).
-3.  Define a function `train_and_predict(X_train, y_train, X_test)`.
-4.  Keep the data loading code of the preprocessing code.
-5.  The main execution block (`if __name__ == "__main__":`) must:
-    a. Call preprocess_data() to get the data generators.
-    b. **Handle the generators based on the chosen model's capability (see IMPORTANT DATA HANDLING). Prefer incremental training (Path 1). Only aggregate the full dataset into memory (Path 2) if the model does not support batch-based training.**
+2.  Your code should start with necessary imports for modeling.
+3.  Define an appropriate `train_and_predict()` function based on the data handling approach.
+4.  The main execution block (`if __name__ == "__main__":`) must:
+    a. Call preprocess_data() to get the data.
+    b. **Handle the data based on the iteration type (see IMPORTANT DATA HANDLING).**
     c. Call your train_and_predict() function.
     d. Save the final predictions to a submission.csv file.
-6.  **Critical Error Handling**: The main execution block MUST be wrapped in a `try...except` block. If ANY exception occurs, the script MUST print the error to stderr and **exit with a non-zero status code** (`sys.exit(1)`).
-7.  Follow the modeling guidelines for algorithm choice.
-8.  Do not use extensive hyperparameter tuning unless specified. Keep the code efficient.
-9.  Limit comments in the code.
-10. The submission file must have the same structure (number of columns) as the sample submission file provided in the dataset, but may have different ID. You have to use the test data to generate predictions and your right submission file. In some cases, you must browse the test image folder to get the IDs and data.
-11. Your final COMPLETE Python code should have only ONE main function. If there are duplicate main function, remove the duplicates and keep only one main function.
-12. Sample submission file given is for template reference (Columns) only. You have to use the test data or test file to generate predictions and your right submission file. In some cases, you must browse the test image folder to get the IDs and data.
-13. **REPRODUCIBILITY & VALIDATION**: 
-    - Always use random_state=42 for ALL random operations (model initialization, cross-validation splits, etc.)
-    - Implement 3-fold cross-validation to evaluate the model
-    - Print the mean CV score in the format: "CV Score: <score_value>"
+5.  **Critical Error Handling**: The main execution block MUST be wrapped in a `try...except` block. If ANY exception occurs, the script MUST print the error to stderr and **exit with a non-zero status code** (`sys.exit(1)`).
+6.  Follow the modeling guidelines for algorithm choice.
+7.  Do not use extensive hyperparameter tuning unless specified. Keep the code efficient.
+8.  Limit comments in the code.
+9.  The submission file must have the same structure (number of columns) as the sample submission file provided in the dataset, but may have different ID. You have to use the test data to generate predictions and your right submission file. In some cases, you must browse the test image folder to get the IDs and data.
+10. Your final COMPLETE Python code should have only ONE main function. If there are duplicate main function, remove the duplicates and keep only one main function.
+11. Sample submission file given is for template reference (Columns) only. You have to use the test data or test file to generate predictions and your right submission file. In some cases, you must browse the test image folder to get the IDs and data.
+12. **REPRODUCIBILITY & VALIDATION**: 
+    - Always use random_state=42 for ALL random operations (model initialization, etc.)
+    - Use the validation set for model evaluation (no cross-validation needed)
+    - Print the validation score in the format: "Validation Score: <score_value>"
     - Use the evaluation metrics specified in the modeling guidelines
 
-
-## CODE STRUCTURE EXAMPLE:
-```python
-# Your modeling code starts here
-import pandas as pd
-import numpy as np
-from sklearn.linear_model import SGDClassifier # Example model that supports partial_fit
-from sklearn.model_selection import cross_val_score
-import sys
-import os
-
-# The 'preprocess_data' function is assumed to be defined here from the context.
-# {preprocessing_code}
-
-# The train_and_predict function now needs to handle the training loop
-def train_and_predict(train_gen, test_gen):
-    # Initialize a model that supports incremental learning
-    model = SGDClassifier(random_state=42)
-
-    # 1. Incremental training using the generator
-    print("Starting incremental training...")
-    # Note: For the first call to partial_fit, you might need to specify all possible class labels
-    # We can get them by iterating through the generator once if not known beforehand.
-    # For simplicity, we assume they are known or handled within the loop.
-    # A robust implementation would collect all unique `y` values first.
-    all_classes = np.array([0, 1]) # IMPORTANT: This is a placeholder, must be replaced with actual classes
-    for X_batch, y_batch in train_gen:
-        model.partial_fit(X_batch, y_batch, classes=all_classes)
-    print("Incremental training complete.")
-
-    # 2. Aggregate test data for prediction
-    # Prediction is often done on the full test set at once.
-    print("Aggregating test data for prediction...")
-    X_test_list, test_ids_list = zip(*[batch for batch in test_gen])
-    X_test = pd.concat(X_test_list) if isinstance(X_test_list[0], pd.DataFrame) else np.vstack(X_test_list)
-    test_ids = np.concatenate(test_ids_list)
-
-    # 3. Perform 3-fold cross-validation for evaluation
-    # Note: For incremental models, we need to aggregate training data for CV
-    print("Performing 3-fold cross-validation...")
-    X_train_list, y_train_list = zip(*[(X_batch, y_batch) for X_batch, y_batch in train_gen])
-    X_train_full = pd.concat(X_train_list) if isinstance(X_train_list[0], pd.DataFrame) else np.vstack(X_train_list)
-    y_train_full = np.concatenate(y_train_list)
-    
-    # Create a fresh model for CV (same type, same random_state)
-    cv_model = SGDClassifier(random_state=42)
-    cv_scores = cross_val_score(cv_model, X_train_full, y_train_full, cv=3, scoring='accuracy'(replace this with the appropriate scoring metric))
-    mean_cv_score = cv_scores.mean() (Replace this with the appropriate scoring metric)
-    print(f"CV Score: {{mean_cv_score:.4f}}") (Replace this with the appropriate scoring metric)
-
-    
-    # 4. Make predictions
-    predictions = model.predict(X_test)
-    
-    return predictions, test_ids
-
-
-if __name__ == "__main__":
-    try:
-        # These file paths will be available in the execution environment
-        file_paths = {file_paths_main}
-        
-        # 1. Get data generators
-        # The number of returned elements must match the preprocess_data function
-        train_gen, val_gen, test_gen = preprocess_data(file_paths)
-        print("Data generators initialized successfully.")
-        
-        # 2. Train model and get predictions using the generator-aware function
-        predictions, test_ids = train_and_predict(train_gen, test_gen)
-        print("Model training and prediction complete.")
-
-        # 3. Create submission file
-        submission_df = pd.DataFrame({{'ID_COLUMN_NAME': test_ids, 'PREDICTION_COLUMN_NAME': predictions}})
-        submission_df.to_csv("submission.csv", index=False)
-
-        print("Modeling script executed successfully and submission.csv created!")
-
-    except Exception as e:
-        print(f"An error occurred during modeling: {{e}}", file=sys.stderr)
-        sys.exit(1)
-```
 """
 
     def build(self, guideline: Dict, description: Dict, preprocessing_code: str, previous_code: str = None, error_message: str = None, iteration_type: str = None) -> str:
@@ -242,7 +160,61 @@ The provided preprocessing code's `preprocess_data` function returns **preproces
 ### Data Usage:
 - **For traditional ML**: Use the preprocessed DataFrames/arrays directly with scikit-learn models
 - **Logic**: Call `X_train, X_val, X_test, y_train, y_val, y_test = preprocess_data(file_paths)` and use them directly
-- **Memory**: Data is already loaded into memory and ready for training"""
+- **Memory**: Data is already loaded into memory and ready for training
+
+## CODE STRUCTURE EXAMPLE:
+```python
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+import sys
+
+def train_and_predict(X_train, y_train, X_val, y_val, X_test):
+    # Initialize traditional ML model
+    # TODO: Replace below lines with the appropriate modeling code based on guidelines
+    model = RandomForestClassifier(random_state=42, n_estimators=100)  # Example model
+    
+    # Train the model on full training data
+    print("Training model...")
+    model.fit(X_train, y_train)
+    
+    # Evaluate on validation set
+    print("Evaluating on validation set...")
+    val_predictions = model.predict(X_val)
+    val_score = accuracy_score(y_val, val_predictions)
+    print(f"Validation Score: {{val_score:.4f}}")
+    
+    # Make predictions on test set
+    print("Making predictions on test set...")
+    predictions = model.predict(X_test)
+    
+    return predictions
+
+if __name__ == "__main__":
+    try:
+        file_paths = {file_paths_main}
+        
+        # Get preprocessed data (traditional approach returns arrays/DataFrames)
+        X_train, X_val, X_test, y_train, y_val, y_test = preprocess_data(file_paths)
+        print("Data loaded successfully.")
+        
+        # Extract test IDs (assuming they're included in preprocessing or index)
+        test_ids = X_test.index if hasattr(X_test, 'index') else range(len(X_test))
+        
+        # Train and predict
+        predictions = train_and_predict(X_train, y_train, X_val, y_val, X_test)
+        
+        # Create submission
+        submission_df = pd.DataFrame({{'ID_COLUMN_NAME': test_ids, 'PREDICTION_COLUMN_NAME': predictions}})
+        submission_df.to_csv("submission.csv", index=False)
+        
+        print("Modeling script executed successfully!")
+        
+    except Exception as e:
+        print(f"An error occurred during modeling: {{e}}", file=sys.stderr)
+        sys.exit(1)
+```"""
         
         elif iteration_type == "custom_nn":
             return """## IMPORTANT DATA HANDLING
@@ -251,7 +223,70 @@ The provided preprocessing code's `preprocess_data` function returns **a tuple o
 ### Batch Training for Neural Networks:
 - **For custom NN**: Use the generators in training loops with proper batching
 - **Logic**: Iterate through generators, get batches, and train the neural network incrementally
-- **Memory Efficiency**: This approach keeps memory usage low by processing data in batches"""
+- **Memory Efficiency**: This approach keeps memory usage low by processing data in batches
+
+## CODE STRUCTURE EXAMPLE:
+```python
+import pandas as pd
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from sklearn.metrics import accuracy_score
+import sys
+
+
+class CustomNN(nn.Module):
+    # Define your custom neural network architecture here
+
+def train_and_predict(train_gen, val_gen, test_gen):
+    # Model will be initialized after seeing first batch
+    model = None
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Training loop
+    print("Starting neural network training...")
+    # Train your custom neural network with appropriate code.
+    # Example: Initialize model, train in epochs with batches
+    
+    # Validation evaluation
+    print("Evaluating on validation set...")
+    val_predictions = []  # Replace with actual validation predictions
+    val_true = []  # Replace with actual validation labels
+    # Example: Evaluate model on validation set using val_gen
+    
+    val_score = accuracy_score(val_true, val_predictions)  # Replace with appropriate scoring metric
+    print(f"Validation Score: {{val_score:.4f}}")
+    
+    # Test predictions
+    print("Making predictions on test set...")
+    test_predictions = []  # Replace with actual test predictions
+    test_ids = []  # Replace with actual test IDs
+    # Example: Generate predictions on test set using test_gen
+    
+    return test_predictions, test_ids
+
+if __name__ == "__main__":
+    try:
+        file_paths = {file_paths_main}
+        
+        # Get data generators
+        train_gen, val_gen, test_gen = preprocess_data(file_paths)
+        print("Data generators initialized successfully.")
+        
+        # Train and predict
+        predictions, test_ids = train_and_predict(train_gen, val_gen, test_gen)
+        
+        # Create submission
+        submission_df = pd.DataFrame({{'ID_COLUMN_NAME': test_ids, 'PREDICTION_COLUMN_NAME': predictions}})
+        submission_df.to_csv("submission.csv", index=False)
+        
+        print("Modeling script executed successfully!")
+        
+    except Exception as e:
+        print(f"An error occurred during modeling: {{e}}", file=sys.stderr)
+        sys.exit(1)
+```"""
         
         elif iteration_type == "pretrained":
             return """## IMPORTANT DATA HANDLING
@@ -262,23 +297,90 @@ The provided preprocessing code's `preprocess_data` function returns **a tuple o
 - **Logic**: Convert generators to PyTorch DataLoader format for efficient batching
 - **PyTorch Integration**: Use torch.utils.data.DataLoader, transformers.Trainer, or custom PyTorch training loops
 - **HuggingFace**: Prefer transformers library with PyTorch backend over TensorFlow
-- **Compatibility**: Ensure data format matches PyTorch tensor requirements and model input specifications"""
+- **Compatibility**: Ensure data format matches PyTorch tensor requirements and model input specifications
+
+## CODE STRUCTURE EXAMPLE:
+```python
+import pandas as pd
+import numpy as np
+import torch
+from transformers import AutoModel, AutoTokenizer, AutoConfig
+from sklearn.metrics import accuracy_score
+import sys
+
+def train_and_predict(train_gen, val_gen, test_gen):
+    # Load pretrained model (adjust based on your task type)
+    # TODO: Replace "pretrained_model_name" with actual model name based on guideline
+    model_name = "pretrained_model_name" 
+    model = AutoModel.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    
+    # Add task-specific head
+    num_classes = 2  # TODO: Adjust based on your problem
+    classifier = torch.nn.Linear(model.config.hidden_size, num_classes)
+    
+    # Setup training
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model.to(device)
+    classifier.to(device)
+    
+    # TODO: Implement fine-tuning loop
+    # Strategy: First freeze the model and fine-tune the classifier, then unfreeze the model and fine-tune both
+    # Example:
+    # 1. Freeze model parameters: for param in model.parameters(): param.requires_grad = False
+    # 2. Train classifier only for few epochs
+    # 3. Unfreeze model: for param in model.parameters(): param.requires_grad = True  
+    # 4. Fine-tune both model and classifier with lower learning rate
+    
+    # Validation evaluation
+    print("Evaluating on validation set...")
+    val_predictions = []  # TODO: Replace with actual validation predictions from model
+    val_true = []  # TODO: Replace with actual validation labels from val_gen
+    # Example: Iterate through val_gen, get predictions from model+classifier
+    
+    val_score = accuracy_score(val_true, val_predictions)  # TODO: Use appropriate metric
+    print(f"Validation Score: {{val_score:.4f}}")
+    
+    # Test predictions  
+    print("Making predictions on test set...")
+    test_predictions = []  # TODO: Replace with actual test predictions from model
+    test_ids = []  # TODO: Replace with actual test IDs from test_gen
+    # Example: Iterate through test_gen, get predictions from model+classifier
+    
+    return test_predictions, test_ids
+
+if __name__ == "__main__":
+    try:
+        file_paths = {file_paths_main}
+        
+        # Get data generators
+        train_gen, val_gen, test_gen = preprocess_data(file_paths)
+        print("Data generators initialized successfully.")
+        
+        # Train and predict
+        predictions, test_ids = train_and_predict(train_gen, val_gen, test_gen)
+        
+        # Create submission
+        submission_df = pd.DataFrame({{'ID_COLUMN_NAME': test_ids, 'PREDICTION_COLUMN_NAME': predictions}})
+        submission_df.to_csv("submission.csv", index=False)
+        
+        print("Modeling script executed successfully!")
+        
+    except Exception as e:
+        print(f"An error occurred during modeling: {{e}}", file=sys.stderr)
+        sys.exit(1)
+```"""
         
         else:
-            # Default behavior (generators)
+            # Default behavior (fallback)
             return """## IMPORTANT DATA HANDLING
-The provided preprocessing code's `preprocess_data` function returns **a tuple of generators** (e.g., `train_gen, val_gen, test_gen`) to save memory. Your code must handle these generators efficiently. There are two primary ways to do this, depending on the model's capabilities:
+The provided preprocessing code's `preprocess_data` function returns data based on the model type. Handle the data efficiently according to your chosen algorithm.
 
-### Path 1: Incremental/Batch Training (PREFERRED METHOD)
-This is the most memory-efficient approach and should be your default choice.
-- **For scikit-learn**: Use models that support the `.partial_fit()` method (e.g., `SGDClassifier`, `MultinomialNB`, `PassiveAggressiveClassifier`).
-- **Logic**: You will iterate through the training generator, and for each batch of data, you will call `model.partial_fit(X_batch, y_batch)`.
-- **This method AVOIDS loading the entire dataset into memory.**
-
-### Path 2: Full Data Aggregation (FALLBACK METHOD)
-Use this method **ONLY IF** the model specified in the `MODELING_GUIDELINES` does **NOT** support incremental training (e.g., `RandomForestClassifier`, `SVC`, `KNeighborsClassifier`).
-- **Logic**: Iterate through the generators to collect all batches and aggregate them into a single large dataset in memory (e.g., using `pandas.concat` or `numpy.vstack`).
-- **Warning**: Acknowledge that this approach negates the memory-saving benefits of using generators and should only be a fallback."""
+### General Guidelines:
+- **For traditional ML**: Use DataFrames/arrays directly (if provided)
+- **For neural networks**: Use generators for memory efficiency (if provided)
+- **Validation**: Always use the validation set for model evaluation
+- **Consistency**: Ensure data handling matches your algorithm's requirements"""
 
     def parse(self, response: str) -> str:
         """Extract Python code from LLM response."""

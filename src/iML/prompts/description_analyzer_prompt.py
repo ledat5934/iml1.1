@@ -17,6 +17,7 @@ Extract the following information:
 - "task": A summary of the main objective or task of the competition.
 - "task_type": One of ["text_classification","image_classification","tabular_classification","tabular_regression","seq2seq","ner","qa","unknown"] inferred from the description and directory structure.
 - "data file description": A dictionary where the keys are relative path to the file (e.g., "train.csv", "test/test.csv") and the values are their descriptions.
+- "eval_metrics": the evaluation metric for this task(get from description, if not found choose an appropriate metric)
 - "link to the dataset": A list containing the filenames and folders of the core data files (like train, test, sample submission). Do NOT invent or guess full paths. Return the relative path from the input_data_folder only, do not contain the input_data_folder dir.
 ## EXAMPLE:
 ### INPUT TEXT:
@@ -39,6 +40,7 @@ Welcome to the 'Paddy Disease Classification' challenge! The goal is to classify
         "test_images": "A folder containing the test images for which predictions are required.",
         "sample_submission.csv": "An example file showing the required submission format."
     }},
+    "eval_metrics": the evaluation metric for this task(get from description, if not found choose an appropriate metric)
     "link to the dataset": ["train.csv", "train_images", "test_images", "sample_submission.csv"]
 }}
 ## END OF EXAMPLE. NOW, PROCESS THE FOLLOWING TEXT:
