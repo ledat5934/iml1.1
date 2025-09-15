@@ -95,7 +95,6 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
     "modeling": {{
         "recommended_algorithms": ["one most suitable algorithm"],
         "model_selection": ["model_name1"](pretrained model name if using pretrained model),
-        "cross_validation": {{"method": "3-fold", "scoring": "appropriate metric"}},
         "eval_metrics": [],
         "random_state": 42
     }},
