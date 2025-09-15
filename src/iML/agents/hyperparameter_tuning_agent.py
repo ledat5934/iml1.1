@@ -31,13 +31,13 @@ class HyperparameterTuningAgent(BaseAgent):
         """
         self.manager.log_agent_start("Starting hyperparameter tuning phase...")
 
-        # Write modeling code to file
-        model_code = getattr(self.manager, 'modeling_code', None)
-        if not model_code:
-            logger.error("No modeling code available for hyperparameter tuning.")
-            return {"status": "failed", "error": "Modeling code not available."}
-        model_file = os.path.join(self.manager.output_folder, 'modeling_code.py')
-        self.manager.write_code_script(model_code, model_file)
+        # Write the assembled code (preprocessing+model+execution) to a script for tuning
+        assembled_code = getattr(self.manager, 'assembled_code', None)
+        if not assembled_code:
+            logger.error("Assembled code not available for hyperparameter tuning.")
+            return {"status": "failed", "error": "Assembled code not available."}
+        pipeline_file = os.path.join(self.manager.output_folder, 'full_pipeline.py')
+        self.manager.write_code_script(assembled_code, pipeline_file)
 
         # Build hyperparameter tuning script via prompt or inline fallback
         if hasattr(self, 'prompt_handler'):
@@ -51,19 +51,21 @@ class HyperparameterTuningAgent(BaseAgent):
 import json
 import optuna
 import sys
-# Import model from generated modeling code
-sys.path.insert(0, r'{self.manager.output_folder}')
-from modeling_code import Net, train_and_evaluate
+# Import the assembled pipeline script
+dir_path = r'{self.manager.output_folder}'
+sys.path.insert(0, dir_path)
+# Assume full_pipeline.py defines a train_and_evaluate function utilizing the assembled code
+from full_pipeline import train_and_evaluate
 
 def objective(trial):
     lr = trial.suggest_float('lr', 1e-5, 1e-1, log=True)
-    batch_size = trial.suggest_categorical('batch_size', [16, 32, 64, 128])
+    batch_size = trial.suggest_categorical('batch_size', [16, 32])
     accuracy = train_and_evaluate(lr=lr, batch_size=batch_size)
     return accuracy
 
 if __name__ == '__main__':
     study = optuna.create_study(direction='maximize')
-    study.optimize(objective, n_trials={self.n_trials})
+    study.optimize(objective, n_trials={self.n_trials}, timeout={tuning_config.get('timeout', 3600)})
     best = study.best_params
     with open('hyperparam_results.json', 'w') as f:
         json.dump(best, f)
