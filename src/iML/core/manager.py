@@ -5,7 +5,7 @@ import subprocess
 import json
 import shutil
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 from datetime import datetime
 
 from ..agents import (
