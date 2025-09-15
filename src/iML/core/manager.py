@@ -21,6 +21,7 @@ from ..agents import (
 )
 from ..agents.comparison_agent import IterationResultExtractor
 from ..llm import ChatLLMFactory
+from ..agents.hyperparameter_tuning_agent import HyperparameterTuningAgent
 
 # Basic configuration
 logging.basicConfig(level=logging.INFO)
@@ -92,6 +93,10 @@ class Manager:
             config=config,
             manager=self,
             llm_config=self.config.assembler,
+        )
+        # Initialize hyperparameter tuning agent
+        self.hyperparameter_tuning_agent = HyperparameterTuningAgent(
+            config=config, manager=self, llm_config=self.config.get('hyperparameter_tuning_llm', None)
         )
         self.comparison_agent = ComparisonAgent(
             config=config,
@@ -685,6 +690,14 @@ class Manager:
             
         self.modeling_code = modeling_code_result.get("code")
         logger.info("Modeling code generated successfully (not yet validated).")
+
+        # Step 6: Run hyperparameter tuning phase
+        hpt_result = self.hyperparameter_tuning_agent()
+        if hpt_result.get("status") == "failed":
+            logger.error(f"Hyperparameter tuning failed: {hpt_result.get('error')}")
+            return
+        self.hyperparameter_tuning_results = hpt_result.get("results")
+        logger.info("Hyperparameter tuning completed successfully.")
 
         # Step 6: Run Assembler Agent to assemble, finalize, and run the code
         assembler_result = self.assembler_agent()
