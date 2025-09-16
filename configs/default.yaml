@@ -53,4 +53,4 @@ hyperparameter_tuning:
   direction: maximize
   sampler: TPESampler()
   pruner: MedianPruner()
-  timeout: 3600g
+  timeout: 3600
