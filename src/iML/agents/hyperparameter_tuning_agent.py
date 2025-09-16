@@ -39,39 +39,35 @@ class HyperparameterTuningAgent(BaseAgent):
         pipeline_file = os.path.join(self.manager.output_folder, 'full_pipeline.py')
         self.manager.write_code_script(assembled_code, pipeline_file)
 
-        # Build hyperparameter tuning script via prompt or inline fallback
+        # Build robust hyperparameter tuning script using runpy to import the assembled full_pipeline
         tuning_config = getattr(self.manager.config, 'hyperparameter_tuning', {})
-        if hasattr(self, 'prompt_handler'):
-            prompt = self.prompt_handler.build(tuning_config)
-            response = self.llm.assistant_chat(prompt)
-            tuning_script = self.prompt_handler.parse(response)
-        else:
-            # Inline fallback if no LLM available
-            tuning_script = f"""
-import json
-import optuna
-import sys
-# Import the assembled pipeline script
-dir_path = r'{self.manager.output_folder}'
-sys.path.insert(0, dir_path)
-# Assume full_pipeline.py defines a train_and_evaluate function utilizing the assembled code
-from full_pipeline import train_and_evaluate
-
+        direction = tuning_config.get('direction', 'maximize')
+        sampler = tuning_config.get('sampler', 'None')
+        pruner = tuning_config.get('pruner', 'None')
+        timeout = tuning_config.get('timeout', 3600)
+        tuning_script = f"""
+import os, sys, json, optuna, runpy
+# Change to output folder where full_pipeline.py resides
+os.chdir(r'{self.manager.output_folder}')
+sys.path.insert(0, r'{self.manager.output_folder}')
+# Load full_pipeline and extract train_and_evaluate function
+module = runpy.run_path('full_pipeline.py')
+if 'train_and_evaluate' not in module:
+    print('train_and_evaluate not found in full_pipeline.py', file=sys.stderr)
+    sys.exit(1)
+train_and_evaluate = module['train_and_evaluate']
 def objective(trial):
     lr = trial.suggest_float('lr', 1e-5, 1e-1, log=True)
     batch_size = trial.suggest_categorical('batch_size', [16, 32])
-    accuracy = train_and_evaluate(lr=lr, batch_size=batch_size)
-    return accuracy
-
+    return train_and_evaluate(lr=lr, batch_size=batch_size)
 if __name__ == '__main__':
-    study = optuna.create_study(direction='maximize')
-    study.optimize(objective, n_trials={self.n_trials}, timeout={tuning_config.get('timeout', 3600)})
+    study = optuna.create_study(direction='{direction}', sampler={sampler}, pruner={pruner})
+    study.optimize(objective, n_trials={self.n_trials}, timeout={timeout})
     best = study.best_params
-    with open('hyperparam_results.json', 'w') as f:
-        json.dump(best, f)
+    with open('hyperparam_results.json','w') as f:
+        json.dump(best,f)
     print(json.dumps(best))
 """
-
         tuning_file = os.path.join(self.manager.output_folder, 'hyperparameter_tuning.py')
         self.manager.write_code_script(tuning_script, tuning_file)
 
