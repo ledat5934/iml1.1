@@ -12,12 +12,21 @@ class HyperparameterTuningPrompt(BasePrompt):
         Default template to request LLM to generate hyperparameter tuning script.
         """
         return """
-You are an expert ML engineer. Your task is to generate a Python script that performs hyperparameter tuning using Optuna on the assembled pipeline.
+You are an expert ML engineer. Your task is to analyze the provided successful ML pipeline code and generate a Python script that performs hyperparameter tuning using Optuna.
 
-## CONTEXT
-- A combined script `full_pipeline.py` is available and defines:
-  1. `preprocess_data(...)` to load and preprocess the dataset.
-  2. `train_and_evaluate(...)` to train the model and return validation accuracy.
+## SUCCESSFUL PIPELINE CODE TO ANALYZE
+Below is the complete, working pipeline code that successfully trained a model and generated predictions:
+
+```python
+{final_executable_code}
+```
+
+## YOUR TASK
+Analyze the above code and create a hyperparameter tuning script that:
+1. **Extracts the exact file paths** used in the successful pipeline 
+2. **Reuses the preprocessing logic** from the successful code
+3. **Creates a tunable version** of the model training process
+4. **Saves tuned results** to a separate submission file (submission_tuned.csv)
 
 ## TUNING SETTINGS
 - Number of trials: {n_trials}
@@ -29,47 +38,74 @@ You are an expert ML engineer. Your task is to generate a Python script that per
 ## HYPERPARAMETERS TO TUNE
 Select a small set of the most impactful hyperparameters (2-4) to tune. Avoid tuning trivial parameters to save time and resources.
 
-## TUTORIAL EXAMPLE
-Reference example of Optuna usage to guide your script:
-```python
-import optuna
-from full_pipeline import file_paths, preprocess_data, train_and_evaluate
-
-def objective(trial):
-    # Example hyperparameters for a RandomForest
-    n_estimators = trial.suggest_int('n_estimators', 50, 200)
-    max_depth = trial.suggest_int('max_depth', 5, 20)
-    
-    # Use imported file_paths to get data
-    data = preprocess_data(file_paths)
-    
-    # Train and evaluate with suggested hyperparameters
-    score = train_and_evaluate(data, n_estimators=n_estimators, max_depth=max_depth)
-    return score
-
-study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=20, timeout=600)
-best_params = study.best_params
-```
+## ANALYSIS INSTRUCTIONS
+1. **Extract file_paths**: Look for the `file_paths` variable or file loading logic in the successful code
+2. **Identify preprocess function**: Find how data preprocessing is done
+3. **Identify train function**: Find the model training and evaluation logic
+4. **Identify hyperparameters**: Look for model parameters that can be tuned (learning_rate, n_estimators, etc.)
 
 ## REQUIREMENTS
 1. Import necessary modules: `optuna`, `json`, `pickle`, `sys`, and any others needed.
-2. Add the output folder to `sys.path` so `full_pipeline.py` can be imported.
-3. **CRITICAL**: Import `file_paths` and other functions from `full_pipeline.py` to use the exact same data paths as the successful pipeline.
+2. **CRITICAL**: Extract and use the exact same file paths and data loading logic from the successful code.
+3. Recreate the preprocessing steps from the successful code.
 4. Create an Optuna `Study` using the given sampler and pruner, with direction `{direction}`.
 5. Define `objective(trial)` that:
-   - Calls `preprocess_data(file_paths)` using the imported file_paths to obtain data splits.
+   - Uses the extracted file paths to load data exactly like the successful code
    - Uses `trial.suggest_*` methods to select 2-4 key hyperparameters.
-   - Calls `train_and_evaluate(...)` to return validation accuracy.
+   - Trains the model with suggested hyperparameters and returns validation accuracy.
 6. Optimize the study with `n_trials={n_trials}` and `timeout={timeout}`.
 7. After tuning, save best parameters to `hyperparam_results.json` and the study object to `optuna_study.pkl`.
-8. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`.
-9. Return only the complete Python code in a ```python ... ``` block.
+8. **IMPORTANT**: Save the best tuned model predictions to `submission_tuned.csv` (not submission.csv).
+9. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`.
+10. Return only the complete Python code in a ```python ... ``` block.
+
+## EXAMPLE STRUCTURE
+```python
+import optuna
+import json
+import pickle
+import sys
+# ... other imports from successful code ...
+
+# Extract file_paths from successful code
+file_paths = {{...}}  # Use exact paths from successful code
+
+def objective(trial):
+    # Suggest hyperparameters
+    param1 = trial.suggest_int('param1', 10, 100)
+    param2 = trial.suggest_float('param2', 0.01, 1.0)
+    
+    # Preprocess data (copy from successful code)
+    # ... preprocessing logic ...
+    
+    # Train model with suggested hyperparameters
+    # ... training logic ...
+    
+    return validation_score
+
+if __name__ == "__main__":
+    try:
+        study = optuna.create_study(direction='{direction}')
+        study.optimize(objective, n_trials={n_trials}, timeout={timeout})
+        
+        # Save results
+        with open('hyperparam_results.json', 'w') as f:
+            json.dump(study.best_params, f)
+        with open('optuna_study.pkl', 'wb') as f:
+            pickle.dump(study, f)
+            
+        # Train final model with best params and save to submission_tuned.csv
+        # ... final training and prediction logic ...
+        
+    except Exception as e:
+        print(f"Error: {{e}}", file=sys.stderr)
+        sys.exit(1)
+```
 """
 
-    def build(self, tuning_config: Dict[str, Any]) -> str:
+    def build(self, tuning_config: Dict[str, Any], final_executable_code: str = "") -> str:
         """
-        Build the prompt string using tuning parameters from config.
+        Build the prompt string using tuning parameters from config and final executable code.
         """
         n_trials = tuning_config.get('n_trials', 50)
         direction = tuning_config.get('direction', 'maximize')
@@ -82,7 +118,8 @@ best_params = study.best_params
             direction=direction,
             sampler=sampler,
             pruner=pruner,
-            timeout=timeout
+            timeout=timeout,
+            final_executable_code=final_executable_code
         )
         self.manager.save_and_log_states(prompt, 'hyperparameter_tuning_prompt.txt')
         return prompt

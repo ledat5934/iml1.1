@@ -31,18 +31,19 @@ class HyperparameterTuningAgent(BaseAgent):
         """
         self.manager.log_agent_start("Starting hyperparameter tuning phase...")
 
-        # Use the last assembled code from the AssemblerAgent for tuning
-        assembled_code = getattr(self.manager, 'assembled_code', None)
-        if not assembled_code:
-            logger.error("No assembled_code available for hyperparameter tuning.")
-            return {"status": "failed", "error": "Assembled code not available."}
-        pipeline_file = os.path.join(self.manager.output_folder, 'full_pipeline.py')
-        # Append alias so tuning script can import train_and_evaluate
-        # Note: file_paths is already defined in the assembled_code from preprocessing
-        wrapper = "\n\n# Alias for hyperparameter tuning\n" \
-                  "def train_and_evaluate(*args, **kwargs):\n" \
-                  "    return train_and_predict(*args, **kwargs)\n"
-        self.manager.write_code_script(assembled_code + wrapper, pipeline_file)
+        # Read the successful final_executable_code.py instead of creating new file
+        final_code_path = os.path.join(self.manager.output_folder, 'final_executable_code.py')
+        if not os.path.exists(final_code_path):
+            logger.error("final_executable_code.py not found. Cannot proceed with hyperparameter tuning.")
+            return {"status": "failed", "error": "final_executable_code.py not available."}
+        
+        # Read the successful code to pass to LLM for analysis
+        try:
+            with open(final_code_path, 'r', encoding='utf-8') as f:
+                final_executable_code = f.read()
+        except Exception as e:
+            logger.error(f"Failed to read final_executable_code.py: {e}")
+            return {"status": "failed", "error": f"Failed to read final code: {e}"}
 
         # Prepare hyperparameter tuning retries
         tuning_config = getattr(self.manager.config, 'hyperparameter_tuning', {})
@@ -52,15 +53,15 @@ class HyperparameterTuningAgent(BaseAgent):
         if not hasattr(self, 'prompt_handler'):
             logger.error("Prompt handler not configured for hyperparameter tuning.")
             return {"status": "failed", "error": "No prompt handler available for tuning."}
-        prompt = self.prompt_handler.build(tuning_config)
+        
+        # Pass the final executable code to LLM for analysis and tuning script generation
+        prompt = self.prompt_handler.build(tuning_config, final_executable_code)
         tuning_script = self.prompt_handler.parse(self.llm.assistant_chat(prompt))
-        # Prepend working dir and path injection
+        # Prepend working dir and path injection (no import needed as LLM will extract paths from code)
         injection = (
             "import os, sys\n"
             f"os.chdir(r'{self.manager.output_folder}')\n"
             f"sys.path.insert(0, r'{self.manager.output_folder}')\n"
-            "# Import file_paths from full_pipeline.py to ensure correct data paths\n"
-            "from full_pipeline import file_paths\n"
         )
         tuning_script = injection + tuning_script
         # Execute tuning script with retry and repair via LLM on errors
@@ -87,11 +88,12 @@ class HyperparameterTuningAgent(BaseAgent):
                 f"hpt_attempt_{attempt}_failed.log"
             )
             logger.warning(f"Hyperparameter tuning attempt {attempt} failed. Retrying...")
-            # Build repair prompt for LLM
+            # Build repair prompt for LLM with original code context
             repair_prompt = (
                 f"The hyperparameter tuning script failed on attempt {attempt} with error:\n{last_stderr}\n"
                 "Please fix the following Python script for hyperparameter tuning and return the corrected full script only.\n"
-                "Script:\n```python\n" + tuning_script + "\n```"
+                "Original successful code for reference:\n```python\n" + final_executable_code + "\n```\n"
+                "Failed tuning script:\n```python\n" + tuning_script + "\n```"
             )
             response = self.llm.assistant_chat(repair_prompt)
             tuning_script = self.prompt_handler.parse(response)

@@ -635,9 +635,22 @@ class Manager:
             if hpt_result.get("status") == "failed":
                 logger.warning(f"Hyperparameter tuning failed for {iteration_type}: {hpt_result.get('error')}.")
                 logger.info("Proceeding with submission from last assembled code without tuning.")
+                # Keep original submission file as the final result
+                self.final_submission_path = assembler_result.get("submission_path")
             else:
                 self.hyperparameter_tuning_results = hpt_result.get("results")
                 logger.info(f"Hyperparameter tuning completed for {iteration_type}.")
+                # Check if tuned submission file exists and set as final
+                tuned_submission_path = os.path.join(self.output_folder, "submission_tuned.csv")
+                if os.path.exists(tuned_submission_path):
+                    self.final_submission_path = tuned_submission_path
+                    logger.info(f"Using tuned submission file: {tuned_submission_path}")
+                else:
+                    self.final_submission_path = assembler_result.get("submission_path")
+                    logger.info(f"Tuned submission not found, using original: {self.final_submission_path}")
+        else:
+            # For non-tuning iterations, use original submission
+            self.final_submission_path = assembler_result.get("submission_path")
         return True
 
     def run_pipeline(self):
