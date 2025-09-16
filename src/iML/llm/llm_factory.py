@@ -47,6 +47,7 @@ class ChatLLMFactory:
     ) -> Union[AssistantChatOpenAI, AssistantAzureChatOpenAI, AssistantChatBedrock, AssistantChatAnthropic, AssistantChatGemini]:
         """Get a configured chat model instance using LangGraph patterns."""
         provider = config.provider
+        print(provider)
         model = config.model
 
         valid_providers = cls.get_valid_providers()
