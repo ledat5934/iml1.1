@@ -540,6 +540,7 @@ class Manager:
             return
         
         # Create iteration-specific output folder
+        # For single iteration, use simple naming without numbers
         iteration_info = {
             "traditional": {"folder": "iteration_traditional", "description": "Traditional ML algorithms"},
             "custom_nn": {"folder": "iteration_custom_nn", "description": "Custom Neural Networks"}, 

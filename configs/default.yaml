@@ -48,9 +48,10 @@ modeling_coder:
 
 assembler:
   <<: *default_llm
+
 hyperparameter_tuning:
-  n_trials: 20
+  n_trials: 25
   direction: maximize
   sampler: TPESampler()
   pruner: MedianPruner()
-  timeout: 3600
+  timeout: 7200
