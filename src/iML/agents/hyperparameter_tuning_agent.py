@@ -43,39 +43,59 @@ class HyperparameterTuningAgent(BaseAgent):
                    "    return train_and_predict(*args, **kwargs)\n"
         self.manager.write_code_script(assembled_code + wrapper, pipeline_file)
 
-        # Build hyperparameter tuning script via prompt
+        # Prepare hyperparameter tuning retries
         tuning_config = getattr(self.manager.config, 'hyperparameter_tuning', {})
-        # Ensure prompt handler is available
+        max_retries = tuning_config.get('max_retries', 5)
+        timeout = tuning_config.get('timeout', 3600)
+        # Initial prompt-based script
         if not hasattr(self, 'prompt_handler'):
             logger.error("Prompt handler not configured for hyperparameter tuning.")
             return {"status": "failed", "error": "No prompt handler available for tuning."}
         prompt = self.prompt_handler.build(tuning_config)
-        response = self.llm.assistant_chat(prompt)
-        tuning_script = self.prompt_handler.parse(response)
-        # Prepend working directory change so full_pipeline.py import works
+        tuning_script = self.prompt_handler.parse(self.llm.assistant_chat(prompt))
+        # Prepend working dir and path injection
         injection = (
             "import os, sys\n"
             f"os.chdir(r'{self.manager.output_folder}')\n"
             f"sys.path.insert(0, r'{self.manager.output_folder}')\n"
         )
         tuning_script = injection + tuning_script
-        # Write tuning script to file
-        tuning_file = os.path.join(self.manager.output_folder, 'hyperparameter_tuning.py')
-        self.manager.write_code_script(tuning_script, tuning_file)
-
-        # Execute the tuning script content directly
-        result = self.manager.execute_code(
-            code_to_execute=tuning_script,
-            phase_name='hyperparameter_tuning',
-            attempt=1
-        )
-        if not result.get('success'):
-            logger.error("Hyperparameter tuning script failed.")
-            return {"status": "failed", "error": result.get('stderr')}
-
-        # Save tuning stdout
+        # Execute tuning script with retry and repair via LLM on errors
+        max_retries = getattr(self.manager.config.hyperparameter_tuning, 'max_retries', 5)
+        last_stdout = None
+        last_stderr = None
+        for attempt in range(1, max_retries + 1):
+            # Write and run
+            result = self.manager.execute_code(
+                code_to_execute=tuning_script,
+                phase_name='hyperparameter_tuning',
+                attempt=attempt
+            )
+            if result.get('success'):
+                last_stdout = result.get('stdout')
+                break
+            # On failure, log and save for debugging
+            last_stderr = result.get('stderr', '')
+            error_to_log = last_stderr.split('\n')[-10:]
+            self.manager.save_and_log_states(
+                f"---ATTEMPT {attempt} FAILED---\nSCRIPT:\n{tuning_script}\n\nERROR:\n{'\n'.join(error_to_log)}",
+                f"hpt_attempt_{attempt}_failed.log"
+            )
+            logger.warning(f"Hyperparameter tuning attempt {attempt} failed. Retrying...")
+            # Build repair prompt for LLM
+            repair_prompt = (
+                f"The hyperparameter tuning script failed on attempt {attempt} with error:\n{last_stderr}\n"
+                "Please fix the following Python script for hyperparameter tuning and return the corrected full script only.\n"
+                "Script:\n```python\n" + tuning_script + "\n```"
+            )
+            response = self.llm.assistant_chat(repair_prompt)
+            tuning_script = self.prompt_handler.parse(response)
+        else:
+            logger.error(f"Hyperparameter tuning failed after {max_retries} attempts.")
+            return {"status": "failed", "error": last_stderr}
+        # Save tuning stdout from successful run
         self.manager.save_and_log_states(
-            result.get('stdout', ''), 'hyperparameter_tuning_stdout.txt'
+            last_stdout or '', 'hyperparameter_tuning_stdout.txt'
         )
         self.manager.log_agent_end("Completed hyperparameter tuning phase.")
-        return {"status": "success", "results": result.get('stdout')}
+        return {"status": "success", "results": last_stdout}

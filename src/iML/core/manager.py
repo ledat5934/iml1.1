@@ -633,10 +633,11 @@ class Manager:
         if iteration_type in ("custom_nn", "pretrained"):
             hpt_result = self.hyperparameter_tuning_agent()
             if hpt_result.get("status") == "failed":
-                logger.error(f"Hyperparameter tuning failed for {iteration_type}: {hpt_result.get('error')}")
-                return False
-            self.hyperparameter_tuning_results = hpt_result.get("results")
-            logger.info(f"Hyperparameter tuning completed for {iteration_type}.")
+                logger.warning(f"Hyperparameter tuning failed for {iteration_type}: {hpt_result.get('error')}.")
+                logger.info("Proceeding with submission from last assembled code without tuning.")
+            else:
+                self.hyperparameter_tuning_results = hpt_result.get("results")
+                logger.info(f"Hyperparameter tuning completed for {iteration_type}.")
         return True
 
     def run_pipeline(self):
