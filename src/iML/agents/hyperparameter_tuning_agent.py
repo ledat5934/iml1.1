@@ -37,7 +37,11 @@ class HyperparameterTuningAgent(BaseAgent):
             logger.error("No assembled_code available for hyperparameter tuning.")
             return {"status": "failed", "error": "Assembled code not available."}
         pipeline_file = os.path.join(self.manager.output_folder, 'full_pipeline.py')
-        self.manager.write_code_script(assembled_code, pipeline_file)
+        # Append alias so tuning script can import train_and_evaluate
+        wrapper = "\n\n# Alias for hyperparameter tuning\n" \
+                   "def train_and_evaluate(*args, **kwargs):\n" \
+                   "    return train_and_predict(*args, **kwargs)\n"
+        self.manager.write_code_script(assembled_code + wrapper, pipeline_file)
 
         # Build hyperparameter tuning script via prompt
         tuning_config = getattr(self.manager.config, 'hyperparameter_tuning', {})
