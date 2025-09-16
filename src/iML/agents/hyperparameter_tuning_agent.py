@@ -77,8 +77,10 @@ class HyperparameterTuningAgent(BaseAgent):
             # On failure, log and save for debugging
             last_stderr = result.get('stderr', '')
             error_to_log = last_stderr.split('\n')[-10:]
+            # Prepare error text without backslashes in f-string expression
+            error_text = "\n".join(error_to_log)
             self.manager.save_and_log_states(
-                f"---ATTEMPT {attempt} FAILED---\nSCRIPT:\n{tuning_script}\n\nERROR:\n{'\n'.join(error_to_log)}",
+                f"---ATTEMPT {attempt} FAILED---\nSCRIPT:\n{tuning_script}\n\nERROR:\n{error_text}",
                 f"hpt_attempt_{attempt}_failed.log"
             )
             logger.warning(f"Hyperparameter tuning attempt {attempt} failed. Retrying...")
