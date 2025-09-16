@@ -48,6 +48,13 @@ class HyperparameterTuningAgent(BaseAgent):
         prompt = self.prompt_handler.build(tuning_config)
         response = self.llm.assistant_chat(prompt)
         tuning_script = self.prompt_handler.parse(response)
+        # Prepend working directory change so full_pipeline.py import works
+        injection = (
+            "import os, sys\n"
+            f"os.chdir(r'{self.manager.output_folder}')\n"
+            f"sys.path.insert(0, r'{self.manager.output_folder}')\n"
+        )
+        tuning_script = injection + tuning_script
         # Write tuning script to file
         tuning_file = os.path.join(self.manager.output_folder, 'hyperparameter_tuning.py')
         self.manager.write_code_script(tuning_script, tuning_file)

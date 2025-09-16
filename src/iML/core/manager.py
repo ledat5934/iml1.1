@@ -622,14 +622,6 @@ class Manager:
             return False
         self.modeling_code = modeling_code_result.get("code")
         logger.info("Modeling code generated successfully.")
-        # Step 3.5: Hyperparameter tuning for NN and pretrained iterations
-        if iteration_type in ("custom_nn", "pretrained"):
-            hpt_result = self.hyperparameter_tuning_agent()
-            if hpt_result.get("status") == "failed":
-                logger.error(f"Hyperparameter tuning failed for {iteration_type}: {hpt_result.get('error')}")
-                return False
-            self.hyperparameter_tuning_results = hpt_result.get("results")
-            logger.info(f"Hyperparameter tuning completed for {iteration_type}.")
         # Step 4: Run Assembler Agent
         assembler_result = self.assembler_agent(iteration_type=iteration_type)
         if assembler_result.get("status") == "failed":
@@ -637,7 +629,14 @@ class Manager:
             return False
         self.assembled_code = assembler_result.get("code")
         logger.info("Final script generated and executed successfully.")
-        
+        # Step 5: Hyperparameter tuning for NN and pretrained iterations
+        if iteration_type in ("custom_nn", "pretrained"):
+            hpt_result = self.hyperparameter_tuning_agent()
+            if hpt_result.get("status") == "failed":
+                logger.error(f"Hyperparameter tuning failed for {iteration_type}: {hpt_result.get('error')}")
+                return False
+            self.hyperparameter_tuning_results = hpt_result.get("results")
+            logger.info(f"Hyperparameter tuning completed for {iteration_type}.")
         return True
 
     def run_pipeline(self):
