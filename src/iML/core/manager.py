@@ -96,7 +96,9 @@ class Manager:
         )
         # Initialize hyperparameter tuning agent
         self.hyperparameter_tuning_agent = HyperparameterTuningAgent(
-            config=config, manager=self, llm_config=self.config.get('hyperparameter_tuning_llm', None)
+            config=config,
+            manager=self,
+            llm_config=self.config.assembler
         )
         self.comparison_agent = ComparisonAgent(
             config=config,
