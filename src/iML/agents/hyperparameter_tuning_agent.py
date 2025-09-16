@@ -31,12 +31,9 @@ class HyperparameterTuningAgent(BaseAgent):
         """
         self.manager.log_agent_start("Starting hyperparameter tuning phase...")
 
-        # Determine the correct iteration folder name for final_executable_code.py
-        if iteration_type is None:
-            iteration_type = "custom_nn"  # fallback default
-        
-        iteration_folder = f"iteration_{iteration_type}"
-        final_code_path = os.path.join(self.manager.output_folder, iteration_folder, 'states', 'final_executable_code.py')
+        # The manager.output_folder is already set to the iteration folder during multi-iteration
+        # e.g., /output/dog-breed-identification/iteration_2_custom_nn
+        final_code_path = os.path.join(self.manager.output_folder, 'states', 'final_executable_code.py')
         
         if not os.path.exists(final_code_path):
             logger.error(f"final_executable_code.py not found at {final_code_path}. Cannot proceed with hyperparameter tuning.")

@@ -640,9 +640,9 @@ class Manager:
             else:
                 self.hyperparameter_tuning_results = hpt_result.get("results")
                 logger.info(f"Hyperparameter tuning completed for {iteration_type}.")
-                # Check if tuned submission file exists in the iteration folder
-                iteration_folder = f"iteration_{iteration_type}"
-                tuned_submission_path = os.path.join(self.output_folder, iteration_folder, "submission_tuned.csv")
+                # Check if tuned submission file exists in the current iteration folder
+                # self.output_folder is already the iteration folder (e.g., /output/.../iteration_2_custom_nn)
+                tuned_submission_path = os.path.join(self.output_folder, "submission_tuned.csv")
                 if os.path.exists(tuned_submission_path):
                     self.final_submission_path = tuned_submission_path
                     logger.info(f"Using tuned submission file: {tuned_submission_path}")
