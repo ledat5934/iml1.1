@@ -25,22 +25,28 @@ class HyperparameterTuningAgent(BaseAgent):
                 manager=manager, llm_config=llm_config
             )
 
-    def __call__(self) -> Dict[str, Any]:
+    def __call__(self, iteration_type=None) -> Dict[str, Any]:
         """
         Executes hyperparameter tuning and returns best parameters.
         """
         self.manager.log_agent_start("Starting hyperparameter tuning phase...")
 
-        # Read the successful final_executable_code.py instead of creating new file
-        final_code_path = os.path.join(self.manager.output_folder, 'final_executable_code.py')
+        # Determine the correct iteration folder name for final_executable_code.py
+        if iteration_type is None:
+            iteration_type = "custom_nn"  # fallback default
+        
+        iteration_folder = f"iteration_{iteration_type}"
+        final_code_path = os.path.join(self.manager.output_folder, iteration_folder, 'states', 'final_executable_code.py')
+        
         if not os.path.exists(final_code_path):
-            logger.error("final_executable_code.py not found. Cannot proceed with hyperparameter tuning.")
-            return {"status": "failed", "error": "final_executable_code.py not available."}
+            logger.error(f"final_executable_code.py not found at {final_code_path}. Cannot proceed with hyperparameter tuning.")
+            return {"status": "failed", "error": f"final_executable_code.py not available at {final_code_path}"}
         
         # Read the successful code to pass to LLM for analysis
         try:
             with open(final_code_path, 'r', encoding='utf-8') as f:
                 final_executable_code = f.read()
+            logger.info(f"Successfully read final_executable_code.py from {final_code_path}")
         except Exception as e:
             logger.error(f"Failed to read final_executable_code.py: {e}")
             return {"status": "failed", "error": f"Failed to read final code: {e}"}

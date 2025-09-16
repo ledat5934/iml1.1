@@ -55,7 +55,7 @@ Select a small set of the most impactful hyperparameters (2-4) to tune. Avoid tu
    - Trains the model with suggested hyperparameters and returns validation accuracy.
 6. Optimize the study with `n_trials={n_trials}` and `timeout={timeout}`.
 7. After tuning, save best parameters to `hyperparam_results.json` and the study object to `optuna_study.pkl`.
-8. **IMPORTANT**: Save the best tuned model predictions to `submission_tuned.csv` (not submission.csv).
+8. **IMPORTANT**: Save the best tuned model predictions to `submission_tuned.csv` (not submission.csv) in the current working directory.
 9. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`.
 10. Return only the complete Python code in a ```python ... ``` block.
 
@@ -96,6 +96,7 @@ if __name__ == "__main__":
             
         # Train final model with best params and save to submission_tuned.csv
         # ... final training and prediction logic ...
+        # Make sure to save to current working directory as submission_tuned.csv
         
     except Exception as e:
         print(f"Error: {{e}}", file=sys.stderr)
