@@ -75,9 +75,9 @@ if __name__ == '__main__':
         tuning_file = os.path.join(self.manager.output_folder, 'hyperparameter_tuning.py')
         self.manager.write_code_script(tuning_script, tuning_file)
 
-        # Execute the tuning script
+        # Execute the tuning script content directly
         result = self.manager.execute_code(
-            code_to_execute=f"python {tuning_file}",
+            code_to_execute=tuning_script,
             phase_name='hyperparameter_tuning',
             attempt=1
         )
