@@ -21,7 +21,7 @@ verbosity: 4
 # Default LLM Configuration
 llm: &default_llm
   provider: openai
-  model: gpt-o4-mini
+  model: o4-mini
   max_tokens: 16384
   proxy_url: null
   temperature: 0.0
