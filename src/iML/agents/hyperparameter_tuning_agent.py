@@ -31,10 +31,10 @@ class HyperparameterTuningAgent(BaseAgent):
         """
         self.manager.log_agent_start("Starting hyperparameter tuning phase...")
 
-        # Write the assembled code (preprocessing+model+execution) to a script for tuning
+        # Use the last assembled code from the AssemblerAgent for tuning
         assembled_code = getattr(self.manager, 'assembled_code', None)
         if not assembled_code:
-            logger.error("Assembled code not available for hyperparameter tuning.")
+            logger.error("No assembled_code available for hyperparameter tuning.")
             return {"status": "failed", "error": "Assembled code not available."}
         pipeline_file = os.path.join(self.manager.output_folder, 'full_pipeline.py')
         self.manager.write_code_script(assembled_code, pipeline_file)
