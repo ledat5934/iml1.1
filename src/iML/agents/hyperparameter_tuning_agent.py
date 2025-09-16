@@ -40,8 +40,8 @@ class HyperparameterTuningAgent(BaseAgent):
         self.manager.write_code_script(assembled_code, pipeline_file)
 
         # Build hyperparameter tuning script via prompt or inline fallback
+        tuning_config = getattr(self.manager.config, 'hyperparameter_tuning', {})
         if hasattr(self, 'prompt_handler'):
-            tuning_config = getattr(self.manager.config, 'hyperparameter_tuning', {})
             prompt = self.prompt_handler.build(tuning_config)
             response = self.llm.assistant_chat(prompt)
             tuning_script = self.prompt_handler.parse(response)
