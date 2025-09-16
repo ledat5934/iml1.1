@@ -33,12 +33,18 @@ Select a small set of the most impactful hyperparameters (2-4) to tune. Avoid tu
 Reference example of Optuna usage to guide your script:
 ```python
 import optuna
+from full_pipeline import file_paths, preprocess_data, train_and_evaluate
+
 def objective(trial):
     # Example hyperparameters for a RandomForest
     n_estimators = trial.suggest_int('n_estimators', 50, 200)
     max_depth = trial.suggest_int('max_depth', 5, 20)
-    # Build, train, and evaluate model
-    score = evaluate_model(n_estimators=n_estimators, max_depth=max_depth)
+    
+    # Use imported file_paths to get data
+    data = preprocess_data(file_paths)
+    
+    # Train and evaluate with suggested hyperparameters
+    score = train_and_evaluate(data, n_estimators=n_estimators, max_depth=max_depth)
     return score
 
 study = optuna.create_study(direction='maximize')
@@ -49,15 +55,16 @@ best_params = study.best_params
 ## REQUIREMENTS
 1. Import necessary modules: `optuna`, `json`, `pickle`, `sys`, and any others needed.
 2. Add the output folder to `sys.path` so `full_pipeline.py` can be imported.
-3. Create an Optuna `Study` using the given sampler and pruner, with direction `{direction}`.
-4. Define `objective(trial)` that:
-   - Calls `preprocess_data(...)` to obtain data splits.
+3. **CRITICAL**: Import `file_paths` and other functions from `full_pipeline.py` to use the exact same data paths as the successful pipeline.
+4. Create an Optuna `Study` using the given sampler and pruner, with direction `{direction}`.
+5. Define `objective(trial)` that:
+   - Calls `preprocess_data(file_paths)` using the imported file_paths to obtain data splits.
    - Uses `trial.suggest_*` methods to select 2-4 key hyperparameters.
    - Calls `train_and_evaluate(...)` to return validation accuracy.
-5. Optimize the study with `n_trials={n_trials}` and `timeout={timeout}`.
-6. After tuning, save best parameters to `hyperparam_results.json` and the study object to `optuna_study.pkl`.
-7. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`.
-8. Return only the complete Python code in a ```python ... ``` block.
+6. Optimize the study with `n_trials={n_trials}` and `timeout={timeout}`.
+7. After tuning, save best parameters to `hyperparam_results.json` and the study object to `optuna_study.pkl`.
+8. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`.
+9. Return only the complete Python code in a ```python ... ``` block.
 """
 
     def build(self, tuning_config: Dict[str, Any]) -> str:

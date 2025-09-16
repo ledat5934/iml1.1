@@ -38,9 +38,10 @@ class HyperparameterTuningAgent(BaseAgent):
             return {"status": "failed", "error": "Assembled code not available."}
         pipeline_file = os.path.join(self.manager.output_folder, 'full_pipeline.py')
         # Append alias so tuning script can import train_and_evaluate
+        # Note: file_paths is already defined in the assembled_code from preprocessing
         wrapper = "\n\n# Alias for hyperparameter tuning\n" \
-                   "def train_and_evaluate(*args, **kwargs):\n" \
-                   "    return train_and_predict(*args, **kwargs)\n"
+                  "def train_and_evaluate(*args, **kwargs):\n" \
+                  "    return train_and_predict(*args, **kwargs)\n"
         self.manager.write_code_script(assembled_code + wrapper, pipeline_file)
 
         # Prepare hyperparameter tuning retries
@@ -58,6 +59,8 @@ class HyperparameterTuningAgent(BaseAgent):
             "import os, sys\n"
             f"os.chdir(r'{self.manager.output_folder}')\n"
             f"sys.path.insert(0, r'{self.manager.output_folder}')\n"
+            "# Import file_paths from full_pipeline.py to ensure correct data paths\n"
+            "from full_pipeline import file_paths\n"
         )
         tuning_script = injection + tuning_script
         # Execute tuning script with retry and repair via LLM on errors
