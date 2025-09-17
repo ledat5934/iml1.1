@@ -630,8 +630,8 @@ class Manager:
             return False
         self.assembled_code = assembler_result.get("code")
         logger.info("Final script generated and executed successfully.")
-        # Step 5: Hyperparameter tuning for NN and pretrained iterations
-        if iteration_type in ("custom_nn", "pretrained"):
+        # Step 5: Hyperparameter tuning for all iterations (traditional, custom_nn, pretrained)
+        if iteration_type in ("traditional", "custom_nn", "pretrained"):
             hpt_result = self.hyperparameter_tuning_agent(iteration_type=iteration_type)
             if hpt_result.get("status") == "failed":
                 logger.warning(f"Hyperparameter tuning failed for {iteration_type}: {hpt_result.get('error')}.")
