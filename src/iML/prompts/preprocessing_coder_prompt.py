@@ -151,6 +151,7 @@ Generate the corrected Python code:
             return """
 For Traditional ML algorithms (XGBoost, LightGBM, CatBoost):
 - Focus on feature engineering for tabular data
+- Try to extract features from image or text data if neccessary
 - Use categorical encoding (Label/One-hot/Target encoding)
 - Apply numerical feature scaling if needed (StandardScaler, MinMaxScaler)
 - Handle missing values with appropriate imputation strategies
