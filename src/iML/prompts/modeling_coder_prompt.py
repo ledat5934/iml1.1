@@ -120,6 +120,7 @@ Generate the corrected Python code:
             return """
 For Traditional ML algorithms (XGBoost, LightGBM, CatBoost):
 - Focus on feature importance analysis
+- Try to extract features from image or text data if neccessary
 - Use early stopping for gradient boosting methods
 - Optimize for tabular data characteristics
 - Use optuna library for hyperparameter tuning
