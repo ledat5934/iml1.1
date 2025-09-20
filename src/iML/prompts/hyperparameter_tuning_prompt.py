@@ -26,7 +26,7 @@ Analyze the above code and create a hyperparameter tuning script that:
 1. **Extracts the exact file paths** used in the successful pipeline 
 2. **Reuses the preprocessing logic** from the successful code
 3. **Creates a tunable version** of the model training process
-4. **Saves tuned results** to a separate submission file (submission_tuned.csv)
+4. **CRITICALLY IMPORTANT**: After optimization, trains a final model with best parameters and creates `submission_tuned.csv`
 
 ## TUNING SETTINGS
 - Number of trials: {n_trials}
@@ -34,6 +34,15 @@ Analyze the above code and create a hyperparameter tuning script that:
 - Sampler: {sampler}
 - Pruner: {pruner}
 - Timeout (seconds): {timeout}
+
+## CRITICAL REQUIREMENT: FINAL PREDICTIONS
+🚨 **MANDATORY**: Your script MUST include a final training step that:
+1. Takes the best hyperparameters found by Optuna
+2. Trains a final model with these best parameters on the full training data
+3. Generates predictions on the test dataset
+4. Saves these predictions to `submission_tuned.csv` in the current working directory
+
+This is NOT optional - every hyperparameter tuning script must produce `submission_tuned.csv`.
 
 ## HYPERPARAMETERS TO TUNE
 Select a small set of the most impactful hyperparameters (2-4) to tune. Avoid tuning trivial parameters to save time and resources.
@@ -55,9 +64,13 @@ Select a small set of the most impactful hyperparameters (2-4) to tune. Avoid tu
    - Trains the model with suggested hyperparameters and returns validation accuracy.
 6. Optimize the study with `n_trials={n_trials}` and `timeout={timeout}`.
 7. After tuning, save best parameters to `hyperparam_results.json` and the study object to `optuna_study.pkl`.
-8. **IMPORTANT**: Save the best tuned model predictions to `submission_tuned.csv` (not submission.csv) in the current working directory.
-9. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`.
-10. Return only the complete Python code in a ```python ... ``` block.
+8. **CRITICALLY IMPORTANT - FINAL TRAINING STEP**: After optimization completes, use the best parameters to:
+   - Train a final model with the best hyperparameters on the full training dataset
+   - Generate predictions on the test dataset 
+   - Save predictions to `submission_tuned.csv` (NOT submission.csv) in current working directory
+9. This final training step is MANDATORY and must be included in your script.
+10. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`.
+11. Return only the complete Python code in a ```python ... ``` block.
 
 ## EXAMPLE STRUCTURE
 ```python
@@ -94,9 +107,23 @@ if __name__ == "__main__":
         with open('optuna_study.pkl', 'wb') as f:
             pickle.dump(study, f)
             
-        # Train final model with best params and save to submission_tuned.csv
-        # ... final training and prediction logic ...
-        # Make sure to save to current working directory as submission_tuned.csv
+        # MANDATORY: Train final model with best parameters and create submission_tuned.csv
+        print("Training final model with best parameters...")
+        best_params = study.best_params
+        
+        # Load and preprocess data exactly like in successful code
+        # ... copy preprocessing logic from successful code ...
+        
+        # Train final model with best hyperparameters
+        # ... use best_params to configure and train model ...
+        
+        # Generate predictions on test data
+        # test_predictions = final_model.predict(X_test_processed)
+        
+        # Create submission_tuned.csv (MANDATORY)
+        # submission_df = pd.DataFrame({{'id': test_ids, 'target': test_predictions}})
+        # submission_df.to_csv('submission_tuned.csv', index=False)
+        print("Final predictions saved to submission_tuned.csv")
         
     except Exception as e:
         print(f"Error: {{e}}", file=sys.stderr)

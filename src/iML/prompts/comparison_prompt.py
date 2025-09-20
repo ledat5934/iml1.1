@@ -146,7 +146,7 @@ Provide your analysis in the following JSON format:
             error = result.get('error')
             
             section = f"""
-### {name.upper()}
+### {name}
 **Status**: {status}
 **Raw Output Analysis**:
 Please extract validation scores, accuracy, F1, RMSE, etc. from the execution output below.

@@ -1,6 +1,7 @@
 import logging
 import os
-from typing import Any, Dict
+import re
+from typing import Any, Dict, Optional
 import optuna
 from .base_agent import BaseAgent
 from .utils import init_llm
@@ -24,6 +25,45 @@ class HyperparameterTuningAgent(BaseAgent):
             self.prompt_handler = HyperparameterTuningPrompt(
                 manager=manager, llm_config=llm_config
             )
+
+    def _extract_performance_metrics(self, stdout_content: str) -> Dict[str, float]:
+        """Extract performance metrics from hyperparameter tuning stdout."""
+        metrics = {}
+        
+        # Common metric patterns
+        patterns = {
+            'best_score': r'Best score:\s*([0-9]*\.?[0-9]+)',
+            'best_params_score': r'Best parameters.*score[:\s]*([0-9]*\.?[0-9]+)',
+            'final_score': r'Final.*score[:\s]*([0-9]*\.?[0-9]+)',
+            'tuned_score': r'Tuned.*score[:\s]*([0-9]*\.?[0-9]+)',
+            'validation_score': r'Validation Score:\s*([0-9]*\.?[0-9]+)',
+            'cv_score': r'CV Score:\s*([0-9]*\.?[0-9]+)',
+            'accuracy': r'Accuracy:\s*([0-9]*\.?[0-9]+)',
+            'f1_score': r'F1[- ]?Score:\s*([0-9]*\.?[0-9]+)',
+        }
+        
+        for metric_name, pattern in patterns.items():
+            matches = re.findall(pattern, stdout_content, re.IGNORECASE)
+            if matches:
+                try:
+                    # Take the last occurrence (most recent score)
+                    metrics[metric_name] = float(matches[-1])
+                except ValueError:
+                    continue
+        
+        return metrics
+
+    def _get_best_tuning_score(self, metrics: Dict[str, float]) -> Optional[float]:
+        """Get the best performance score from tuning metrics."""
+        # Priority order for score selection
+        score_priority = ['best_score', 'best_params_score', 'final_score', 'tuned_score', 
+                         'validation_score', 'cv_score', 'accuracy', 'f1_score']
+        
+        for score_name in score_priority:
+            if score_name in metrics:
+                return metrics[score_name]
+        
+        return None
 
     def __call__(self, iteration_type=None) -> Dict[str, Any]:
         """
@@ -107,5 +147,37 @@ class HyperparameterTuningAgent(BaseAgent):
         self.manager.save_and_log_states(
             last_stdout or '', 'hyperparameter_tuning_stdout.txt'
         )
+        
+        # Extract and log performance metrics
+        if last_stdout:
+            tuning_metrics = self._extract_performance_metrics(last_stdout)
+            tuning_score = self._get_best_tuning_score(tuning_metrics)
+            
+            # Get iteration type for clear logging
+            iteration_name = os.path.basename(self.manager.output_folder)
+            
+            logger.info("🎯" + "="*60)
+            logger.info(f"📊 HYPERPARAMETER TUNING COMPLETED: {iteration_name}")
+            logger.info("🎯" + "="*60)
+            
+            if tuning_metrics:
+                logger.info(f"📈 Extracted tuning metrics: {tuning_metrics}")
+                if tuning_score is not None:
+                    logger.info(f"🏆 Best tuned performance score: {tuning_score:.4f}")
+                    
+                    # Check if submission_tuned.csv was created
+                    tuned_submission_path = os.path.join(self.manager.output_folder, "submission_tuned.csv")
+                    if os.path.exists(tuned_submission_path):
+                        logger.info(f"✅ Tuned submission created: submission_tuned.csv")
+                        logger.info(f"📄 Tuned submission file: {iteration_name}/submission_tuned.csv")
+                    else:
+                        logger.warning(f"⚠️ Tuned submission file not found at {tuned_submission_path}")
+                else:
+                    logger.warning("⚠️ No performance score extracted from tuning output")
+            else:
+                logger.warning("⚠️ No performance metrics extracted from hyperparameter tuning")
+            
+            logger.info("🎯" + "="*60)
+        
         self.manager.log_agent_end("Completed hyperparameter tuning phase.")
-        return {"status": "success", "results": last_stdout}
+        return {"status": "success", "results": last_stdout, "metrics": tuning_metrics if 'tuning_metrics' in locals() else {}}
