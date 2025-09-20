@@ -1023,10 +1023,11 @@ class Manager:
             else:
                 logger.warning("⚠️ No tuning performance metrics available")
         else:
-                logger.warning("⚠️ No tuned performance metrics available")
-        elif hpt_result and hpt_result.get("status") == "failed":
+            logger.warning("⚠️ No tuned performance metrics available")
+        
+        if hpt_result and hpt_result.get("status") == "failed":
             logger.warning("⚠️ Hyperparameter tuning failed - using original submission")
-        else:
+        elif hpt_result is None:
             logger.info("ℹ️ No hyperparameter tuning performed for this iteration")
         
         # Check which submission files exist
