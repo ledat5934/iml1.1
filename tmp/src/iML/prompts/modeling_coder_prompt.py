@@ -53,10 +53,8 @@ The following preprocessing code, including a function `preprocess_data(file_pat
 12. **REPRODUCIBILITY & VALIDATION**: 
     - Always use random_state=42 for ALL random operations (model initialization, etc.)
     - Use the validation set for model evaluation (no cross-validation needed)
-    - **CRITICAL**: ALWAYS print the validation score using this EXACT format: "Validation Score: <score_value>"
+    - Print the validation score in the format: "Validation Score: <score_value>"
     - Use the evaluation metrics specified in the modeling guidelines
-    - Print additional metrics as available (e.g., "Accuracy: 0.85", "F1 Score: 0.82", "RMSE: 0.15")
-    - Ensure all metric printing uses clear labels followed by colon and space
 
 """
 
@@ -122,6 +120,7 @@ Generate the corrected Python code:
             return """
 For Traditional ML algorithms (XGBoost, LightGBM, CatBoost):
 - Focus on feature importance analysis
+- Try to extract features from image or text data if neccessary
 - Use early stopping for gradient boosting methods
 - Optimize for tabular data characteristics
 - Use optuna library for hyperparameter tuning
@@ -190,7 +189,6 @@ def train_and_predict(X_train, y_train, X_val, y_val, X_test):
     val_predictions = model.predict(X_val)
     val_score = accuracy_score(y_val, val_predictions)
     print(f"Validation Score: {{val_score:.4f}}")
-    print(f"Accuracy: {{val_score:.4f}}")  # Also print as accuracy for backup extraction
     
     # Make predictions on test set
     print("Making predictions on test set...")
@@ -264,7 +262,6 @@ def train_and_predict(train_gen, val_gen, test_gen):
     
     val_score = accuracy_score(val_true, val_predictions)  # Replace with appropriate scoring metric
     print(f"Validation Score: {{val_score:.4f}}")
-    print(f"Accuracy: {{val_score:.4f}}")  # Also print as accuracy for backup extraction
     
     # Test predictions
     print("Making predictions on test set...")
@@ -348,7 +345,6 @@ def train_and_predict(train_gen, val_gen, test_gen):
     
     val_score = accuracy_score(val_true, val_predictions)  # TODO: Use appropriate metric
     print(f"Validation Score: {{val_score:.4f}}")
-    print(f"Accuracy: {{val_score:.4f}}")  # Also print as accuracy for backup extraction
     
     # Test predictions  
     print("Making predictions on test set...")

@@ -4,9 +4,8 @@ import uuid
 import subprocess
 import json
 import shutil
-import re
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict
 from datetime import datetime
 
 from ..agents import (
@@ -22,7 +21,6 @@ from ..agents import (
 )
 from ..agents.comparison_agent import IterationResultExtractor
 from ..llm import ChatLLMFactory
-from ..agents.hyperparameter_tuning_agent import HyperparameterTuningAgent
 
 # Basic configuration
 logging.basicConfig(level=logging.INFO)
@@ -94,12 +92,6 @@ class Manager:
             config=config,
             manager=self,
             llm_config=self.config.assembler,
-        )
-        # Initialize hyperparameter tuning agent
-        self.hyperparameter_tuning_agent = HyperparameterTuningAgent(
-            config=config,
-            manager=self,
-            llm_config=self.config.assembler
         )
         self.comparison_agent = ComparisonAgent(
             config=config,
@@ -441,54 +433,23 @@ class Manager:
         
         # Copy best submission to final_submission folder
         if best_iteration_name:
-            # Normalize iteration name to handle case mismatch
-            normalized_iteration_name = self._normalize_iteration_name(best_iteration_name, original_output_folder)
-            
-            best_iteration_path = os.path.join(original_output_folder, normalized_iteration_name)
-            logger.info(f"🔍 Copying best submission from: {normalized_iteration_name}")
-            if normalized_iteration_name != best_iteration_name:
-                logger.info(f"📝 Note: LLM selected '{best_iteration_name}', normalized to '{normalized_iteration_name}'")
-            
+            best_iteration_path = os.path.join(original_output_folder, best_iteration_name)
             success = self._copy_best_submission(best_iteration_path, original_output_folder)
             
             if success:
-                logger.info(f"🎉 Best submission successfully copied from {normalized_iteration_name}")
+                logger.info(f"✅ Best submission copied from {best_iteration_name}")
                 if "error" not in comparison_result:
-                    logger.info(f"🧠 LLM Reasoning: {comparison_result.get('reasoning_summary', 'No reasoning provided')}")
-                logger.info(f"📁 Final submission available in: {os.path.join(original_output_folder, 'final_submission')}")
+                    logger.info(f"📊 LLM Reasoning: {comparison_result.get('reasoning_summary', 'No reasoning provided')}")
             else:
-                logger.error(f"❌ Failed to copy best submission from {normalized_iteration_name}")
-                logger.error("🔧 This may be due to missing submission files in the iteration directory")
-                logger.error(f"🔧 Checked path: {best_iteration_path}")
+                logger.error("❌ Failed to copy best submission")
         else:
-            logger.error("❌ No best iteration selected - this should not happen")
+            logger.error("❌ No best iteration selected")
         
-        # Print final summary
+        # Print summary
         successful_count = len([r for r in iteration_results if r.get('status') == 'success'])
-        logger.info("🎊" + "="*70)
-        logger.info("🎊 MULTI-ITERATION AUTOML PIPELINE COMPLETED")
-        logger.info("🎊" + "="*70)
         logger.info(f"📈 Summary: {successful_count}/{len(iterations)} iterations successful")
-        
         if best_iteration_name:
-            # Extract submission type from metadata
-            final_submission_path = os.path.join(original_output_folder, "final_submission")
-            metadata_file = os.path.join(final_submission_path, "selection_metadata.json")
-            
-            submission_identifier = "unknown"
-            if os.path.exists(metadata_file):
-                try:
-                    with open(metadata_file, 'r', encoding='utf-8') as f:
-                        metadata = json.load(f)
-                        submission_identifier = metadata.get("submission_identifier", "unknown")
-                except:
-                    pass
-            
-            logger.info(f"🏆 FINAL BEST SUBMISSION: {submission_identifier}")
-            logger.info(f"📂 Source iteration: {best_iteration_name}")
-            logger.info(f"📁 Final submission location: final_submission/submission.csv")
-        
-        logger.info("🎊" + "="*70)
+            logger.info(f"🏆 LLM Selected Winner: {best_iteration_name}")
         
         logger.info("Multi-Iteration AutoML Pipeline completed!")
     
@@ -506,184 +467,20 @@ class Manager:
             logger.warning("No successful iterations found for fallback selection")
             return None
         
-        logger.info(f"🔄 Fallback selection from {len(successful_iterations)} successful iterations")
-        
-        # Select based on priority order (case-insensitive)
+        # Select based on priority order
         for preferred_name in priority_order:
             for iteration in successful_iterations:
-                iteration_name = iteration.get('iteration_name', '').lower()
-                if preferred_name.lower() in iteration_name:
-                    actual_name = iteration['iteration_name']
-                    logger.info(f"🎯 Fallback selected: {actual_name} (matched {preferred_name})")
-                    return actual_name
+                if preferred_name in iteration.get('iteration_name', ''):
+                    logger.info(f"Fallback selected: {iteration['iteration_name']}")
+                    return iteration['iteration_name']
         
         # If no match, select first successful
         first_successful = successful_iterations[0]['iteration_name']
-        logger.info(f"⚠️ Fallback selected first successful: {first_successful}")
+        logger.info(f"Fallback selected first successful: {first_successful}")
         return first_successful
     
-    def _normalize_iteration_name(self, iteration_name: str, base_output_folder: str) -> Optional[str]:
-        """Normalize iteration name to match actual directory name (case-insensitive)."""
-        if not iteration_name:
-            return None
-        
-        base_path = Path(base_output_folder)
-        if not base_path.exists():
-            return iteration_name
-        
-        # Get all iteration directories
-        iteration_dirs = [d for d in base_path.iterdir() if d.is_dir() and d.name.startswith('iteration_')]
-        
-        # Try exact match first
-        target_path = base_path / iteration_name
-        if target_path.exists():
-            return iteration_name
-        
-        # Try case-insensitive match
-        iteration_name_lower = iteration_name.lower()
-        for dir_path in iteration_dirs:
-            if dir_path.name.lower() == iteration_name_lower:
-                logger.info(f"🔧 Normalized iteration name: {iteration_name} → {dir_path.name}")
-                return dir_path.name
-        
-        # No match found
-        logger.warning(f"⚠️ No matching directory found for iteration: {iteration_name}")
-        logger.warning(f"Available directories: {[d.name for d in iteration_dirs]}")
-        return iteration_name
-    
-    def _extract_performance_metrics(self, stdout_content: str) -> Dict[str, float]:
-        """Extract performance metrics from stdout content."""
-        metrics = {}
-        
-        # Common metric patterns
-        patterns = {
-            'validation_score': r'Validation Score:\s*([0-9]*\.?[0-9]+)',
-            'cv_score': r'CV Score:\s*([0-9]*\.?[0-9]+)',
-            'mean_cv_score': r'Mean CV Score:\s*([0-9]*\.?[0-9]+)',
-            'accuracy': r'Accuracy:\s*([0-9]*\.?[0-9]+)',
-            'f1_score': r'F1[- ]?Score:\s*([0-9]*\.?[0-9]+)',
-            'rmse': r'RMSE:\s*([0-9]*\.?[0-9]+)',
-            'mae': r'MAE:\s*([0-9]*\.?[0-9]+)',
-            'r2_score': r'R2[- ]?Score:\s*([0-9]*\.?[0-9]+)',
-            'auc': r'AUC:\s*([0-9]*\.?[0-9]+)',
-        }
-        
-        for metric_name, pattern in patterns.items():
-            matches = re.findall(pattern, stdout_content, re.IGNORECASE)
-            if matches:
-                try:
-                    # Take the last occurrence (most recent score)
-                    metrics[metric_name] = float(matches[-1])
-                except ValueError:
-                    continue
-        
-        return metrics
-    
-    def _get_submission_performance(self, iteration_path: Path, submission_type: str) -> Tuple[Optional[float], Dict[str, float]]:
-        """Get performance score for a specific submission type."""
-        
-        if submission_type == "original":
-            # Look in assembler attempts for original submission performance
-            attempts_dir = iteration_path / "attempts" / "assembler"
-        elif submission_type == "tuned":
-            # Look in hyperparameter_tuning attempts for tuned submission performance
-            attempts_dir = iteration_path / "attempts" / "hyperparameter_tuning"
-        else:
-            return None, {}
-        
-        if not attempts_dir.exists():
-            return None, {}
-        
-        # Get all stdout content from attempts
-        all_stdout = ""
-        attempt_dirs = [d for d in attempts_dir.iterdir() if d.is_dir() and d.name.startswith("attempt_")]
-        
-        for attempt_dir in attempt_dirs:
-            stdout_file = attempt_dir / "stdout.txt"
-            if stdout_file.exists():
-                try:
-                    with open(stdout_file, 'r', encoding='utf-8') as f:
-                        all_stdout += f.read() + "\n"
-                except Exception as e:
-                    logger.warning(f"Could not read {stdout_file}: {e}")
-        
-        # Extract metrics
-        metrics = self._extract_performance_metrics(all_stdout)
-        
-        # Determine the primary score to use for comparison
-        primary_score = None
-        
-        # Priority order for primary score selection
-        score_priority = ['mean_cv_score', 'cv_score', 'validation_score', 'accuracy', 'f1_score', 'auc', 'r2_score']
-        
-        for score_name in score_priority:
-            if score_name in metrics:
-                primary_score = metrics[score_name]
-                break
-        
-        return primary_score, metrics
-    
-    def _select_best_submission_file(self, iteration_path: Path) -> Tuple[Optional[Path], str, Dict]:
-        """Select the best submission file based on performance metrics."""
-        
-        original_submission = iteration_path / "submission.csv"
-        tuned_submission = iteration_path / "submission_tuned.csv"
-        
-        # Check which files exist
-        original_exists = original_submission.exists()
-        tuned_exists = tuned_submission.exists()
-        
-        if not original_exists and not tuned_exists:
-            return None, "none", {"error": "No submission files found"}
-        
-        if tuned_exists and not original_exists:
-            return tuned_submission, "tuned", {"reason": "Only tuned submission available"}
-        
-        if original_exists and not tuned_exists:
-            return original_submission, "original", {"reason": "Only original submission available"}
-        
-        # Both files exist - compare performance
-        original_score, original_metrics = self._get_submission_performance(iteration_path, "original")
-        tuned_score, tuned_metrics = self._get_submission_performance(iteration_path, "tuned")
-        
-        logger.info(f"📊 Performance comparison for {iteration_path.name}:")
-        logger.info(f"   Original submission score: {original_score} (metrics: {original_metrics})")
-        logger.info(f"   Tuned submission score: {tuned_score} (metrics: {tuned_metrics})")
-        
-        # Decision logic
-        decision_info = {
-            "original_score": original_score,
-            "tuned_score": tuned_score,
-            "original_metrics": original_metrics,
-            "tuned_metrics": tuned_metrics
-        }
-        
-        # If we can't get scores for either, fall back to tuned (assuming it's better)
-        if original_score is None and tuned_score is None:
-            logger.warning("🔍 No performance metrics found for either submission, defaulting to tuned version")
-            return tuned_submission, "tuned", {**decision_info, "reason": "No metrics found, defaulting to tuned"}
-        
-        # If only one has a score, pick that one
-        if original_score is None and tuned_score is not None:
-            logger.info("🎯 Selecting tuned submission (only one with metrics)")
-            return tuned_submission, "tuned", {**decision_info, "reason": "Only tuned has metrics"}
-        
-        if tuned_score is None and original_score is not None:
-            logger.info("📊 Selecting original submission (only one with metrics)")
-            return original_submission, "original", {**decision_info, "reason": "Only original has metrics"}
-        
-        # Both have scores - compare them
-        if tuned_score > original_score:
-            improvement = tuned_score - original_score
-            logger.info(f"🎯 Selecting tuned submission (score: {tuned_score:.4f} vs {original_score:.4f}, +{improvement:.4f})")
-            return tuned_submission, "tuned", {**decision_info, "reason": f"Tuned performs better by {improvement:.4f}"}
-        else:
-            decline = original_score - tuned_score
-            logger.info(f"📊 Selecting original submission (score: {original_score:.4f} vs {tuned_score:.4f}, tuned declined by {decline:.4f})")
-            return original_submission, "original", {**decision_info, "reason": f"Original performs better by {decline:.4f}"}
-    
     def _copy_best_submission(self, source_iteration_path: str, target_folder: str) -> bool:
-        """Copy the best submission to final_submission folder based on performance comparison."""
+        """Copy the best submission to final_submission folder."""
         try:
             source_path = Path(source_iteration_path)
             target_path = Path(target_folder) / "final_submission"
@@ -691,97 +488,38 @@ class Manager:
             # Create target directory
             target_path.mkdir(parents=True, exist_ok=True)
             
-            # Select the best submission file based on performance
-            best_submission_file, submission_type, decision_info = self._select_best_submission_file(source_path)
-            
-            if best_submission_file is None:
-                error_msg = decision_info.get("error", "Unknown error in submission selection")
-                logger.error(f"❌ {error_msg} in {source_path}")
-                return False
-            
-            files_copied = []
-            
-            # Log the selection decision with detailed format
-            reason = decision_info.get("reason", "No reason provided")
-            
-            # Create detailed submission identifier
-            iteration_base = source_path.name
-            if "traditional" in iteration_base.lower():
-                iter_type = "traditional"
-            elif "custom_nn" in iteration_base.lower():
-                iter_type = "custom_nn"
-            elif "pretrained" in iteration_base.lower():
-                iter_type = "pretrained"
-            else:
-                iter_type = "unknown"
-            
-            tuning_status = "tuned" if submission_type == "tuned" else "non_tuned"
-            best_submission_identifier = f"iter_{iter_type}_{tuning_status}"
-            
-            logger.info("🏆" + "="*60)
-            logger.info(f"🎯 BEST SUBMISSION SELECTED: {best_submission_identifier}")
-            logger.info("🏆" + "="*60)
-            logger.info(f"📄 File: {best_submission_file.name} ({submission_type})")
-            logger.info(f"📋 Selection reason: {reason}")
-            
-            # Log performance comparison if available
-            original_score = decision_info.get("original_score")
-            tuned_score = decision_info.get("tuned_score")
-            if original_score is not None and tuned_score is not None:
-                logger.info(f"📊 Performance comparison:")
-                logger.info(f"   Original score: {original_score:.4f}")
-                logger.info(f"   Tuned score: {tuned_score:.4f}")
-                if tuned_score > original_score:
-                    improvement = tuned_score - original_score
-                    logger.info(f"   Improvement: +{improvement:.4f} (tuned better)")
-                else:
-                    decline = original_score - tuned_score
-                    logger.info(f"   Decline: -{decline:.4f} (original better)")
-            
-            logger.info("🏆" + "="*60)
-            
-            # Copy the selected submission file as submission.csv
+            # Copy submission.csv
+            source_submission = source_path / "submission.csv"
             target_submission = target_path / "submission.csv"
-            shutil.copy2(best_submission_file, target_submission)
-            logger.info(f"✅ Copied best submission from {best_submission_file} to {target_submission}")
-            files_copied.append("submission.csv")
             
-            # Also copy the final executable code for reference
-            source_code = source_path / "states" / "final_executable_code.py"
-            if source_code.exists():
-                target_code = target_path / "final_executable_code.py"
-                shutil.copy2(source_code, target_code)
-                logger.info(f"✅ Copied final code to {target_code}")
-                files_copied.append("final_executable_code.py")
-            
-            # Copy hyperparameter tuning results if they exist (regardless of which submission was selected)
-            hyperparam_results = source_path / "hyperparam_results.json"
-            if hyperparam_results.exists():
-                target_hyperparam = target_path / "hyperparam_results.json"
-                shutil.copy2(hyperparam_results, target_hyperparam)
-                logger.info(f"✅ Copied hyperparameter results to {target_hyperparam}")
-                files_copied.append("hyperparam_results.json")
-            
-            # Copy comparison metadata with performance information
-            metadata = {
-                "source_iteration": source_path.name,
-                "submission_type": submission_type,
-                "submission_identifier": best_submission_identifier,
-                "source_file": best_submission_file.name,
-                "selection_reason": reason,
-                "performance_comparison": decision_info,
-                "copied_at": datetime.now().isoformat(),
-                "files_copied": files_copied
-            }
-            metadata_file = target_path / "selection_metadata.json"
-            with open(metadata_file, 'w', encoding='utf-8') as f:
-                json.dump(metadata, f, indent=2, ensure_ascii=False)
-            
-            logger.info(f"📋 Selection metadata saved to {metadata_file}")
-            return True
+            if source_submission.exists():
+                shutil.copy2(source_submission, target_submission)
+                logger.info(f"Copied best submission from {source_submission} to {target_submission}")
+                
+                # Also copy the final executable code for reference
+                source_code = source_path / "states" / "final_executable_code.py"
+                if source_code.exists():
+                    target_code = target_path / "final_executable_code.py"
+                    shutil.copy2(source_code, target_code)
+                    logger.info(f"Copied final code to {target_code}")
+                
+                # Copy comparison metadata
+                metadata = {
+                    "source_iteration": source_path.name,
+                    "copied_at": datetime.now().isoformat(),
+                    "files_copied": ["submission.csv", "final_executable_code.py"]
+                }
+                metadata_file = target_path / "selection_metadata.json"
+                with open(metadata_file, 'w', encoding='utf-8') as f:
+                    json.dump(metadata, f, indent=2, ensure_ascii=False)
+                
+                return True
+            else:
+                logger.error(f"Source submission file not found: {source_submission}")
+                return False
                 
         except Exception as e:
-            logger.error(f"❌ Error copying best submission: {e}")
+            logger.error(f"Error copying best submission: {e}")
             return False
 
     def run_pipeline_single_iteration(self, iteration_type: str):
@@ -795,7 +533,6 @@ class Manager:
             return
         
         # Create iteration-specific output folder
-        # For single iteration, use simple naming without numbers
         iteration_info = {
             "traditional": {"folder": "iteration_traditional", "description": "Traditional ML algorithms"},
             "custom_nn": {"folder": "iteration_custom_nn", "description": "Custom Neural Networks"}, 
@@ -878,6 +615,7 @@ class Manager:
             return False
         self.modeling_code = modeling_code_result.get("code")
         logger.info("Modeling code generated successfully.")
+
         # Step 4: Run Assembler Agent
         assembler_result = self.assembler_agent(iteration_type=iteration_type)
         if assembler_result.get("status") == "failed":
@@ -885,169 +623,8 @@ class Manager:
             return False
         self.assembled_code = assembler_result.get("code")
         logger.info("Final script generated and executed successfully.")
-        # Step 5: Hyperparameter tuning for all iterations (traditional, custom_nn, pretrained)
-        if iteration_type in ("traditional", "custom_nn", "pretrained"):
-            hpt_result = self.hyperparameter_tuning_agent(iteration_type=iteration_type)
-            if hpt_result.get("status") == "failed":
-                logger.warning(f"Hyperparameter tuning failed for {iteration_type}: {hpt_result.get('error')}.")
-                logger.info("Proceeding with submission from last assembled code without tuning.")
-                # Keep original submission file as the final result
-                self.final_submission_path = assembler_result.get("submission_path")
-            else:
-                self.hyperparameter_tuning_results = hpt_result.get("results")
-                logger.info(f"Hyperparameter tuning completed for {iteration_type}.")
-                # Check if tuned submission file exists in the current iteration folder
-                # self.output_folder is already the iteration folder (e.g., /output/.../iteration_2_custom_nn)
-                tuned_submission_path = os.path.join(self.output_folder, "submission_tuned.csv")
-                if os.path.exists(tuned_submission_path):
-                    self.final_submission_path = tuned_submission_path
-                    logger.info(f"Using tuned submission file: {tuned_submission_path}")
-                else:
-                    self.final_submission_path = assembler_result.get("submission_path")
-                    logger.info(f"Tuned submission not found, using original: {self.final_submission_path}")
-        else:
-            # For non-tuning iterations, use original submission
-            self.final_submission_path = assembler_result.get("submission_path")
-        
-        # Performance summary for this iteration
-        self._log_iteration_performance_summary(iteration_type, assembler_result, hpt_result if 'hpt_result' in locals() else None)
         
         return True
-
-    def _log_iteration_performance_summary(self, iteration_type: str, assembler_result: Dict, hpt_result: Optional[Dict] = None):
-        """Log performance summary for an iteration."""
-        iteration_name = os.path.basename(self.output_folder)
-        
-        logger.info("📊" + "="*60)
-        logger.info(f"🎯 ITERATION PERFORMANCE SUMMARY: {iteration_name}")
-        logger.info("📊" + "="*60)
-        
-        # Try to load scores from separate JSON files
-        non_tuned_file = os.path.join(self.output_folder, "non_tuned_scores.json")
-        tuned_file = os.path.join(self.output_folder, "tuned_scores.json")
-        
-        # Log original scores
-        if os.path.exists(non_tuned_file):
-            try:
-                with open(non_tuned_file, 'r', encoding='utf-8') as f:
-                    non_tuned_data = json.load(f)
-                
-                original_scores = non_tuned_data.get("scores", {})
-                if original_scores:
-                    logger.info(f"📈 Original submission metrics: {original_scores}")
-                    # Get primary score
-                    primary_score = None
-                    score_priority = ['validation_score', 'accuracy', 'f1_score', 'auc', 'r2_score']
-                    for score_name in score_priority:
-                        if score_name in original_scores:
-                            primary_score = original_scores[score_name]
-                            logger.info(f"🏆 Original primary score: {primary_score:.4f} ({score_name})")
-                            break
-                    if primary_score is None:
-                        logger.warning("⚠️ No primary score identified from original metrics")
-                else:
-                    logger.warning("⚠️ No original scores found in non_tuned_scores.json")
-                    
-            except Exception as e:
-                logger.warning(f"Failed to read non_tuned_scores.json: {e}")
-        else:
-            logger.warning("⚠️ non_tuned_scores.json not found")
-        
-        # Log tuned scores if available
-        if os.path.exists(tuned_file):
-            try:
-                with open(tuned_file, 'r', encoding='utf-8') as f:
-                    tuned_data = json.load(f)
-                
-                tuned_scores = tuned_data.get("scores", {})
-                best_tuned = tuned_data.get("best_score")
-                if tuned_scores:
-                    logger.info(f"📈 Tuned submission metrics: {tuned_scores}")
-                    if best_tuned is not None:
-                        logger.info(f"🏆 Best tuned score: {best_tuned:.4f}")
-                    else:
-                        logger.warning("⚠️ No best tuned score identified")
-                else:
-                    logger.warning("⚠️ No tuned scores found in tuned_scores.json")
-                    
-            except Exception as e:
-                logger.warning(f"Failed to read tuned_scores.json: {e}")
-        
-        # Log file locations for easy comparison
-        if os.path.exists(non_tuned_file) or os.path.exists(tuned_file):
-            logger.info(f"📋 Score files for comparison:")
-            if os.path.exists(non_tuned_file):
-                logger.info(f"   📄 Original: {non_tuned_file}")
-            if os.path.exists(tuned_file):
-                logger.info(f"   📄 Tuned: {tuned_file}")
-        else:
-            # Fallback to old method
-            self._log_metrics_fallback(assembler_result, hpt_result)
-        
-        logger.info("📊" + "="*60)
-    
-    def _log_metrics_fallback(self, assembler_result: Dict, hpt_result: Optional[Dict] = None):
-        """Fallback method to log metrics when scores.json is not available."""
-        # Log assembler (original) performance
-        assembler_metrics = assembler_result.get("scores", {})
-        if assembler_metrics:
-            logger.info(f"📈 Original submission metrics: {assembler_metrics}")
-            # Get primary score
-            primary_score = None
-            score_priority = ['validation_score', 'accuracy', 'f1_score', 'auc', 'r2_score']
-            for score_name in score_priority:
-                if score_name in assembler_metrics:
-                    primary_score = assembler_metrics[score_name]
-                    logger.info(f"🏆 Original primary score: {primary_score:.4f} ({score_name})")
-                    break
-            if primary_score is None:
-                logger.warning("⚠️ No primary score identified from original metrics")
-        else:
-            logger.warning("⚠️ No original performance metrics available")
-        
-        # Log hyperparameter tuning performance if available
-        if hpt_result and hpt_result.get("status") == "success":
-            hpt_metrics = hpt_result.get("metrics", {})
-            if hpt_metrics:
-                logger.info(f"🎯 Tuned submission metrics: {hpt_metrics}")
-                # Get primary tuning score
-                primary_tuning_score = None
-                tuning_score_priority = ['best_score', 'best_params_score', 'final_score', 'tuned_score', 'validation_score', 'accuracy', 'f1_score']
-                for score_name in tuning_score_priority:
-                    if score_name in hpt_metrics:
-                        primary_tuning_score = hpt_metrics[score_name]
-                        logger.info(f"🏆 Best tuned score: {primary_tuning_score:.4f} ({score_name})")
-                        break
-                if primary_tuning_score is None:
-                    logger.warning("⚠️ No primary score identified from tuning metrics")
-            else:
-                logger.warning("⚠️ No tuning performance metrics available")
-                    
-                    if original_primary is not None and tuned_score is not None:
-                        if tuned_score > original_primary:
-                            improvement = tuned_score - original_primary
-                            logger.info(f"🚀 Hyperparameter tuning improved performance by +{improvement:.4f}")
-                        else:
-                            decline = original_primary - tuned_score
-                            logger.info(f"📉 Hyperparameter tuning declined performance by -{decline:.4f}")
-            else:
-                logger.warning("⚠️ No tuned performance metrics available")
-        elif hpt_result and hpt_result.get("status") == "failed":
-            logger.warning("⚠️ Hyperparameter tuning failed - using original submission")
-        else:
-            logger.info("ℹ️ No hyperparameter tuning performed for this iteration")
-        
-        # Check which submission files exist
-        original_exists = os.path.exists(os.path.join(self.output_folder, "submission.csv"))
-        tuned_exists = os.path.exists(os.path.join(self.output_folder, "submission_tuned.csv"))
-        
-        logger.info(f"📁 Generated files:")
-        if original_exists:
-            logger.info(f"   ✅ submission.csv (original)")
-        if tuned_exists:
-            logger.info(f"   ✅ submission_tuned.csv (hyperparameter tuned)")
-        
-        logger.info("📊" + "="*60)
 
     def run_pipeline(self):
         """Run the entire pipeline from description analysis to code generation."""
@@ -1112,17 +689,11 @@ class Manager:
         # Step 6: Run Assembler Agent to assemble, finalize, and run the code
         assembler_result = self.assembler_agent()
         if assembler_result.get("status") == "failed":
-            logger.error(f"Final code assembly and execution failed: {assembler_result.get('error')}" )
+            logger.error(f"Final code assembly and execution failed: {assembler_result.get('error')}")
             return
+        
         self.assembled_code = assembler_result.get("code")
         logger.info(f"Initial script generated and executed successfully.")
-        # Step 7: Run hyperparameter tuning phase on assembled code
-        hpt_result = self.hyperparameter_tuning_agent()
-        if hpt_result.get("status") == "failed":
-            logger.error(f"Hyperparameter tuning failed: {hpt_result.get('error')}")
-            return
-        self.hyperparameter_tuning_results = hpt_result.get("results")
-        logger.info("Hyperparameter tuning completed successfully.")
 
         logger.info("AutoML pipeline completed successfully!")
 

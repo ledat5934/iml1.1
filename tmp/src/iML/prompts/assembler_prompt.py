@@ -20,7 +20,7 @@ Your task is to ensure the script is clean, robust, and correct.
 
 ## REQUIREMENTS:
 1.  **Final Script**: The output must be a single, standalone, executable Python file and it should be run on the real data.
-2.  **Validation Score**: If validation data is available, you MUST calculate and print a relevant validation score using this EXACT format: "Validation Score: <score_value>". Also print additional metrics like "Accuracy: <value>", "F1 Score: <value>", etc.
+2.  **Validation Score**: If validation data is available, you MUST calculate and print a relevant validation score.
 3.  **Absolute Output Path**: The script MUST save `submission.csv` to the following absolute path: `{output_path}`.
 4.  **Error Handling**: Maintain the `try...except` block for robust execution.
 5.  **Clarity**: Ensure the final script is clean and well-structured.

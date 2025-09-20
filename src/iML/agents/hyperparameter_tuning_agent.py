@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import json
 from typing import Any, Dict, Optional
 import optuna
 from .base_agent import BaseAgent
@@ -64,6 +65,31 @@ class HyperparameterTuningAgent(BaseAgent):
                 return metrics[score_name]
         
         return None
+    
+    def _save_tuned_scores(self, tuning_metrics: Dict[str, float]):
+        """Save tuned scores to separate tuned_scores.json file."""
+        iteration_name = os.path.basename(self.manager.output_folder)
+        tuned_file = os.path.join(self.manager.output_folder, "tuned_scores.json")
+        
+        try:
+            # Create tuned scores data
+            score_data = {
+                "iteration_name": iteration_name,
+                "iteration_type": self.manager.output_folder.split('_')[-1] if '_' in self.manager.output_folder else "unknown",
+                "timestamp": "hyperparameter_tuned",
+                "scores": tuning_metrics,
+                "best_score": self._get_best_tuning_score(tuning_metrics),
+                "submission_file": "submission_tuned.csv"
+            }
+            
+            # Save tuned scores to separate file
+            with open(tuned_file, 'w', encoding='utf-8') as f:
+                json.dump(score_data, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"Tuned scores saved to: {tuned_file}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to save tuned scores to JSON: {e}")
 
     def _get_iteration_config(self, iteration_type: Optional[str] = None) -> Dict[str, Any]:
         """Get hyperparameter tuning configuration for the specific iteration type."""
@@ -191,6 +217,9 @@ class HyperparameterTuningAgent(BaseAgent):
         if last_stdout:
             tuning_metrics = self._extract_performance_metrics(last_stdout)
             tuning_score = self._get_best_tuning_score(tuning_metrics)
+            
+            # Save tuned scores to separate JSON file
+            self._save_tuned_scores(tuning_metrics)
             
             # Get iteration type for clear logging
             iteration_name = os.path.basename(self.manager.output_folder)
