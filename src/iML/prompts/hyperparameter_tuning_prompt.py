@@ -34,6 +34,7 @@ Analyze the above code and create a hyperparameter tuning script that:
 - Sampler: {sampler}
 - Pruner: {pruner}
 - Timeout (seconds): {timeout}
+{fast_training_instructions}
 
 ## CRITICAL REQUIREMENT: FINAL PREDICTIONS
 🚨 **MANDATORY**: Your script MUST include a final training step that:
@@ -140,13 +141,58 @@ if __name__ == "__main__":
         sampler = tuning_config.get('sampler', 'TPESampler()')
         pruner = tuning_config.get('pruner', 'MedianPruner()')
         timeout = tuning_config.get('timeout', 3600)
+        fast_training_mode = tuning_config.get('fast_training_mode', False)
+        
+        # Generate fast training instructions if enabled
+        fast_training_instructions = ""
+        if fast_training_mode:
+            fast_training_instructions = """
 
+## ⚡ FAST TRAINING MODE ENABLED
+⚠️ **CRITICAL**: To fit within time constraints, use reduced training for trials:
+- **Reduce epochs**: Use 5-15 epochs for objective function (instead of 50-200)
+- **Reduce dataset**: Use 20-30% of training data for validation during tuning
+- **Early stopping**: Use aggressive early stopping (patience=2-3)
+- **Batch size**: Use larger batch sizes (256-512) to speed up training
+- **Model size**: Consider smaller model architectures during tuning
+
+⚠️ **IMPORTANT**: Only the FINAL model training (after optimization) should use full data and epochs!
+
+```python
+# Example for objective function (reduced training)
+def objective(trial):
+    # ... hyperparameter suggestions ...
+    
+    # FAST TRAINING for screening
+    model.fit(
+        X_train_subset,  # Use subset of data (e.g., first 30%)
+        y_train_subset,
+        epochs=10,       # Reduced epochs
+        batch_size=256,  # Larger batch size
+        validation_split=0.2,
+        callbacks=[EarlyStopping(patience=2)]  # Aggressive early stopping
+    )
+    
+    return validation_score
+
+# FINAL TRAINING (after optimization) - use full resources
+final_model.fit(
+    X_train_full,    # Full training data
+    y_train_full,    
+    epochs=50,       # Full epochs
+    batch_size=64,   # Optimal batch size
+    validation_split=0.2,
+    callbacks=[EarlyStopping(patience=5)]
+)
+```"""
+        
         prompt = self.template.format(
             n_trials=n_trials,
             direction=direction,
             sampler=sampler,
             pruner=pruner,
             timeout=timeout,
+            fast_training_instructions=fast_training_instructions,
             final_executable_code=final_executable_code
         )
         self.manager.save_and_log_states(prompt, 'hyperparameter_tuning_prompt.txt')

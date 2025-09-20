@@ -14,8 +14,8 @@ class HyperparameterTuningAgent(BaseAgent):
     """
     def __init__(self, config: Any, manager: Any, llm_config: Any=None, **kwargs):
         super().__init__(config, manager)
-        # number of trials from config or default
-        self.n_trials = getattr(config, 'hyperparameter_tuning', {}).get('n_trials', 50)
+        # Store config for iteration-specific access
+        self.config = config
         # Initialize LLM and prompt handler if llm_config provided
         if llm_config:
             self.llm = init_llm(
@@ -65,11 +65,37 @@ class HyperparameterTuningAgent(BaseAgent):
         
         return None
 
+    def _get_iteration_config(self, iteration_type: Optional[str] = None) -> Dict[str, Any]:
+        """Get hyperparameter tuning configuration for the specific iteration type."""
+        # Get hyperparameter tuning config
+        hpt_config = getattr(self.config, 'hyperparameter_tuning', {})
+        
+        # If no iteration type specified or no iteration-specific config exists, use default
+        if iteration_type is None or iteration_type not in hpt_config:
+            default_config = hpt_config.get('default', {})
+            logger.info(f"Using default hyperparameter tuning configuration")
+            return default_config
+        
+        # Use iteration-specific configuration
+        iteration_config = hpt_config.get(iteration_type, {})
+        logger.info(f"Using {iteration_type}-specific hyperparameter tuning configuration")
+        logger.info(f"Configuration: {iteration_config}")
+        return iteration_config
+
     def __call__(self, iteration_type=None) -> Dict[str, Any]:
         """
         Executes hyperparameter tuning and returns best parameters.
         """
         self.manager.log_agent_start("Starting hyperparameter tuning phase...")
+
+        # Get iteration-specific configuration
+        iteration_config = self._get_iteration_config(iteration_type)
+        
+        # Log which configuration is being used
+        if iteration_type:
+            logger.info(f"🎯 Running hyperparameter tuning for iteration type: {iteration_type}")
+        else:
+            logger.info("🎯 Running hyperparameter tuning with default configuration")
 
         # The manager.output_folder is already set to the iteration folder during multi-iteration
         # e.g., /output/dog-breed-identification/iteration_2_custom_nn
@@ -88,17 +114,31 @@ class HyperparameterTuningAgent(BaseAgent):
             logger.error(f"Failed to read final_executable_code.py: {e}")
             return {"status": "failed", "error": f"Failed to read final code: {e}"}
 
-        # Prepare hyperparameter tuning retries
-        tuning_config = getattr(self.manager.config, 'hyperparameter_tuning', {})
-        max_retries = tuning_config.get('max_retries', 5)
-        timeout = tuning_config.get('timeout', 3600)
+        # Get iteration-specific parameters
+        max_retries = iteration_config.get('max_retries', 5)
+        timeout = iteration_config.get('timeout', 3600)
+        n_trials = iteration_config.get('n_trials', 25)
+        
+        # Log the configuration being used
+        logger.info(f"📊 Hyperparameter tuning configuration:")
+        logger.info(f"   - Trials: {n_trials}")
+        logger.info(f"   - Timeout: {timeout}s ({timeout/3600:.1f}h)")
+        logger.info(f"   - Max retries: {max_retries}")
+        
+        # Check for fast training mode (for deep learning)
+        fast_training_mode = iteration_config.get('fast_training_mode', False)
+        if fast_training_mode:
+            logger.info(f"⚡ Fast training mode enabled for {iteration_type}")
+            logger.info(f"   - Strategy: Reduced epochs/data for screening")
+            logger.info(f"   - This allows more trials within time constraints")
         # Initial prompt-based script
         if not hasattr(self, 'prompt_handler'):
             logger.error("Prompt handler not configured for hyperparameter tuning.")
             return {"status": "failed", "error": "No prompt handler available for tuning."}
         
         # Pass the final executable code to LLM for analysis and tuning script generation
-        prompt = self.prompt_handler.build(tuning_config, final_executable_code)
+        # Use iteration-specific config for prompt building
+        prompt = self.prompt_handler.build(iteration_config, final_executable_code)
         tuning_script = self.prompt_handler.parse(self.llm.assistant_chat(prompt))
         # Prepend working dir and path injection (no import needed as LLM will extract paths from code)
         injection = (
@@ -107,8 +147,7 @@ class HyperparameterTuningAgent(BaseAgent):
             f"sys.path.insert(0, r'{self.manager.output_folder}')\n"
         )
         tuning_script = injection + tuning_script
-        # Execute tuning script with retry and repair via LLM on errors
-        max_retries = getattr(self.manager.config.hyperparameter_tuning, 'max_retries', 5)
+        # Execute tuning script with retry and repair via LLM on errors using iteration-specific max_retries
         last_stdout = None
         last_stderr = None
         for attempt in range(1, max_retries + 1):
