@@ -1022,15 +1022,7 @@ class Manager:
                     logger.warning("⚠️ No primary score identified from tuning metrics")
             else:
                 logger.warning("⚠️ No tuning performance metrics available")
-                    
-                    if original_primary is not None and tuned_score is not None:
-                        if tuned_score > original_primary:
-                            improvement = tuned_score - original_primary
-                            logger.info(f"🚀 Hyperparameter tuning improved performance by +{improvement:.4f}")
-                        else:
-                            decline = original_primary - tuned_score
-                            logger.info(f"📉 Hyperparameter tuning declined performance by -{decline:.4f}")
-            else:
+        else:
                 logger.warning("⚠️ No tuned performance metrics available")
         elif hpt_result and hpt_result.get("status") == "failed":
             logger.warning("⚠️ Hyperparameter tuning failed - using original submission")
