@@ -36,14 +36,16 @@ Analyze the above code and create a hyperparameter tuning script that:
 - Timeout (seconds): {timeout}
 {fast_training_instructions}
 
-## CRITICAL REQUIREMENT: FINAL PREDICTIONS
-🚨 **MANDATORY**: Your script MUST include a final training step that:
+## 🚨🚨🚨 CRITICAL REQUIREMENT: FINAL PREDICTIONS 🚨🚨🚨
+🔥 **ABSOLUTELY MANDATORY - NO EXCEPTIONS**: Your script MUST include a final training step that:
 1. Takes the best hyperparameters found by Optuna
 2. Trains a final model with these best parameters on the full training data
 3. Generates predictions on the test dataset
-4. Saves these predictions to `submission_tuned.csv` in the current working directory
+4. 🚨 **SAVES PREDICTIONS TO `submission_tuned.csv` - NOT `submission.csv`** 🚨
 
-This is NOT optional - every hyperparameter tuning script must produce `submission_tuned.csv`.
+⚠️ **CRITICAL**: The output file MUST be named `submission_tuned.csv` - NOT `submission.csv`
+⚠️ **FAILURE TO USE THE CORRECT FILENAME WILL CAUSE THE ENTIRE PIPELINE TO FAIL**
+⚠️ This is NOT optional - every hyperparameter tuning script must produce `submission_tuned.csv`.
 
 ## HYPERPARAMETERS TO TUNE
 Select a small set of the most impactful hyperparameters (2-4) to tune. Avoid tuning trivial parameters to save time and resources.
@@ -65,13 +67,14 @@ Select a small set of the most impactful hyperparameters (2-4) to tune. Avoid tu
    - Trains the model with suggested hyperparameters and returns validation accuracy.
 6. Optimize the study with `n_trials={n_trials}` and `timeout={timeout}`.
 7. After tuning, save best parameters to `hyperparam_results.json` and the study object to `optuna_study.pkl`.
-8. **CRITICALLY IMPORTANT - FINAL TRAINING STEP**: After optimization completes, use the best parameters to:
+8. 🚨 **CRITICALLY IMPORTANT - FINAL TRAINING STEP** 🚨: After optimization completes, use the best parameters to:
    - Train a final model with the best hyperparameters on the full training dataset
    - Generate predictions on the test dataset 
-   - Save predictions to `submission_tuned.csv` (NOT submission.csv) in current working directory
-9. This final training step is MANDATORY and must be included in your script.
-10. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`.
-11. Return only the complete Python code in a ```python ... ``` block.
+   - 🔥 **Save predictions to `submission_tuned.csv` (NEVER submission.csv)** 🔥 in current working directory
+9. 🚨 **This final training step is ABSOLUTELY MANDATORY and must be included in your script** 🚨
+10. 🚨 **THE OUTPUT FILE MUST BE NAMED `submission_tuned.csv` - ANY OTHER NAME WILL CAUSE FAILURE** 🚨
+11. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`.
+12. Return only the complete Python code in a ```python ... ``` block.
 
 ## EXAMPLE STRUCTURE
 ```python
@@ -108,7 +111,7 @@ if __name__ == "__main__":
         with open('optuna_study.pkl', 'wb') as f:
             pickle.dump(study, f)
             
-        # MANDATORY: Train final model with best parameters and create submission_tuned.csv
+        # 🚨🚨🚨 MANDATORY: Train final model with best parameters and create submission_tuned.csv 🚨🚨🚨
         print("Training final model with best parameters...")
         best_params = study.best_params
         
@@ -121,10 +124,10 @@ if __name__ == "__main__":
         # Generate predictions on test data
         # test_predictions = final_model.predict(X_test_processed)
         
-        # Create submission_tuned.csv (MANDATORY)
+        # 🔥🔥🔥 Create submission_tuned.csv (ABSOLUTELY MANDATORY - NOT submission.csv) 🔥🔥🔥
         # submission_df = pd.DataFrame({{'id': test_ids, 'target': test_predictions}})
-        # submission_df.to_csv('submission_tuned.csv', index=False)
-        print("Final predictions saved to submission_tuned.csv")
+        # submission_df.to_csv('submission_tuned.csv', index=False)  # MUST BE submission_tuned.csv
+        print("🎉 Final predictions saved to submission_tuned.csv 🎉")
         
     except Exception as e:
         print(f"Error: {{e}}", file=sys.stderr)

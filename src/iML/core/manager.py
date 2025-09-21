@@ -886,7 +886,9 @@ class Manager:
         self.assembled_code = assembler_result.get("code")
         logger.info("Final script generated and executed successfully.")
         # Step 5: Hyperparameter tuning for all iterations (traditional, custom_nn, pretrained)
+        # 🚨 CRITICAL: This step MUST generate submission_tuned.csv, NOT submission.csv 🚨
         if iteration_type in ("traditional", "custom_nn", "pretrained"):
+            logger.info(f"🚨 STARTING HYPERPARAMETER TUNING - MUST GENERATE submission_tuned.csv 🚨")
             hpt_result = self.hyperparameter_tuning_agent(iteration_type=iteration_type)
             if hpt_result.get("status") == "failed":
                 logger.warning(f"Hyperparameter tuning failed for {iteration_type}: {hpt_result.get('error')}.")
@@ -895,16 +897,17 @@ class Manager:
                 self.final_submission_path = assembler_result.get("submission_path")
             else:
                 self.hyperparameter_tuning_results = hpt_result.get("results")
-                logger.info(f"Hyperparameter tuning completed for {iteration_type}.")
+                logger.info(f"🎉 Hyperparameter tuning completed for {iteration_type} 🎉")
                 # Check if tuned submission file exists in the current iteration folder
                 # self.output_folder is already the iteration folder (e.g., /output/.../iteration_2_custom_nn)
                 tuned_submission_path = os.path.join(self.output_folder, "submission_tuned.csv")
                 if os.path.exists(tuned_submission_path):
                     self.final_submission_path = tuned_submission_path
-                    logger.info(f"Using tuned submission file: {tuned_submission_path}")
+                    logger.info(f"✅ ✅ CORRECT: Using tuned submission file: {tuned_submission_path} ✅ ✅")
                 else:
                     self.final_submission_path = assembler_result.get("submission_path")
-                    logger.info(f"Tuned submission not found, using original: {self.final_submission_path}")
+                    logger.error(f"🚨 ERROR: submission_tuned.csv not found! Using original: {self.final_submission_path}")
+                    logger.error(f"🚨 Hyperparameter tuning should have created submission_tuned.csv! 🚨")
         else:
             # For non-tuning iterations, use original submission
             self.final_submission_path = assembler_result.get("submission_path")
@@ -1110,12 +1113,15 @@ class Manager:
         self.assembled_code = assembler_result.get("code")
         logger.info(f"Initial script generated and executed successfully.")
         # Step 7: Run hyperparameter tuning phase on assembled code
+        # 🚨 CRITICAL: This step MUST generate submission_tuned.csv, NOT submission.csv 🚨
+        logger.info(f"🚨 STARTING HYPERPARAMETER TUNING - MUST GENERATE submission_tuned.csv 🚨")
         hpt_result = self.hyperparameter_tuning_agent()
         if hpt_result.get("status") == "failed":
             logger.error(f"Hyperparameter tuning failed: {hpt_result.get('error')}")
+            logger.error(f"🚨 FAILED TO GENERATE submission_tuned.csv! 🚨")
             return
         self.hyperparameter_tuning_results = hpt_result.get("results")
-        logger.info("Hyperparameter tuning completed successfully.")
+        logger.info("🎉 Hyperparameter tuning completed successfully - submission_tuned.csv should be generated! 🎉")
 
         logger.info("AutoML pipeline completed successfully!")
 

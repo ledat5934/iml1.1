@@ -200,7 +200,7 @@ class IterationResultExtractor:
                 result["stdout_excerpt"] = all_stdout[-1000:] if len(all_stdout) > 1000 else all_stdout
             
             # Extract stderr excerpt  
-            stderr_files = [f.replace("stdout.txt", "stderr.txt") for f in stdout_files]
+            stderr_files = [str(f).replace("stdout.txt", "stderr.txt") for f in stdout_files]
             all_stderr = ""
             for stderr_file in stderr_files:
                 if Path(stderr_file).exists():

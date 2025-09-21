@@ -1,8 +1,11 @@
 # src/iML/prompts/comparison_prompt.py
 import json
+import logging
 from typing import Dict, Any, List
 
 from .base_prompt import BasePrompt
+
+logger = logging.getLogger(__name__)
 
 class ComparisonPrompt(BasePrompt):
     """
