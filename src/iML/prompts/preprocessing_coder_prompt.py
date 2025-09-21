@@ -156,7 +156,6 @@ For Traditional ML algorithms (XGBoost, LightGBM, CatBoost):
 - Apply numerical feature scaling if needed (StandardScaler, MinMaxScaler)
 - Handle missing values with appropriate imputation strategies
 - Consider feature selection techniques (SelectKBest, RFE)
-- Create polynomial or interaction features if beneficial
 - Ensure all features are numerical for tree-based models
 - Load entire dataset into memory since traditional ML can handle it efficiently
 """
