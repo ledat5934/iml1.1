@@ -124,7 +124,7 @@ For Traditional ML algorithms (XGBoost, LightGBM, CatBoost):
 - Focus on feature importance analysis
 - Use early stopping for gradient boosting methods
 - Optimize for tabular data characteristics
-- Use optuna library for hyperparameter tuning
+- Use reasonable default hyperparameters for initial model training
 """
         elif iteration_type == "custom_nn":
             return """

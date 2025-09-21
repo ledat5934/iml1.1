@@ -36,12 +36,13 @@ Analyze the above code and create a hyperparameter tuning script that:
 - Timeout (seconds): {timeout}
 {fast_training_instructions}
 
-## 🚨🚨🚨 CRITICAL REQUIREMENT: FINAL PREDICTIONS 🚨🚨🚨
+## 🚨🚨🚨 CRITICAL REQUIREMENT: FINAL PREDICTIONS & SCORE 🚨🚨🚨
 🔥 **ABSOLUTELY MANDATORY - NO EXCEPTIONS**: Your script MUST include a final training step that:
 1. Takes the best hyperparameters found by Optuna
 2. Trains a final model with these best parameters on the full training data
 3. Generates predictions on the test dataset
 4. 🚨 **SAVES PREDICTIONS TO `submission_tuned.csv` - NOT `submission.csv`** 🚨
+5. 📈 **PRINT THE BEST SCORE** using a print statement like `print(f'Best score: {{study.best_value}}')` so it can be automatically extracted.
 
 ⚠️ **CRITICAL**: The output file MUST be named `submission_tuned.csv` - NOT `submission.csv`
 ⚠️ **FAILURE TO USE THE CORRECT FILENAME WILL CAUSE THE ENTIRE PIPELINE TO FAIL**
@@ -73,8 +74,9 @@ Select a small set of the most impactful hyperparameters (2-4) to tune. Avoid tu
    - 🔥 **Save predictions to `submission_tuned.csv` (NEVER submission.csv)** 🔥 in current working directory
 9. 🚨 **This final training step is ABSOLUTELY MANDATORY and must be included in your script** 🚨
 10. 🚨 **THE OUTPUT FILE MUST BE NAMED `submission_tuned.csv` - ANY OTHER NAME WILL CAUSE FAILURE** 🚨
-11. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`.
-12. Return only the complete Python code in a ```python ... ``` block.
+11. 📈 **PRINT THE BEST SCORE**: After optimization, you MUST print the best score from the study using `print(f"Best score: {{study.best_value}}")`.
+12. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`.
+13. Return only the complete Python code in a ```python ... ``` block.
 
 ## EXAMPLE STRUCTURE
 ```python
@@ -85,7 +87,7 @@ import sys
 # ... other imports from successful code ...
 
 # Extract file_paths from successful code
-file_paths = {{...}}  # Use exact paths from successful code
+file_paths = {{{{...}}}}  # Use exact paths from successful code
 
 def objective(trial):
     # Suggest hyperparameters
@@ -104,6 +106,9 @@ if __name__ == "__main__":
     try:
         study = optuna.create_study(direction='{direction}')
         study.optimize(objective, n_trials={n_trials}, timeout={timeout})
+        
+        # 📈 📈 📈 PRINT BEST SCORE - DO NOT REMOVE 📈 📈 📈
+        print(f"Best score: {{study.best_value}}")
         
         # Save results
         with open('hyperparam_results.json', 'w') as f:
@@ -125,12 +130,12 @@ if __name__ == "__main__":
         # test_predictions = final_model.predict(X_test_processed)
         
         # 🔥🔥🔥 Create submission_tuned.csv (ABSOLUTELY MANDATORY - NOT submission.csv) 🔥🔥🔥
-        # submission_df = pd.DataFrame({{'id': test_ids, 'target': test_predictions}})
+        # submission_df = pd.DataFrame({{{{'id': test_ids, 'target': test_predictions}}}})
         # submission_df.to_csv('submission_tuned.csv', index=False)  # MUST BE submission_tuned.csv
         print("🎉 Final predictions saved to submission_tuned.csv 🎉")
         
     except Exception as e:
-        print(f"Error: {{e}}", file=sys.stderr)
+        print(f"Error: {{{{e}}}}", file=sys.stderr)
         sys.exit(1)
 ```
 """
