@@ -54,7 +54,9 @@ class ChatLLMFactory:
         if provider not in valid_providers:
             raise ValueError(f"Invalid provider: {provider}. Must be one of {valid_providers}")
 
+        valid_models = cls.get_valid_models(provider)
         valid_models = ['gemini-2.5-flash']
+        print(cls.get_valid_models(provider));
         if model not in valid_models:
             if model[3:] not in valid_models:  # TODO: better logic for cross region inference
                 raise ValueError(
