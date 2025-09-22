@@ -118,12 +118,12 @@ Generate the corrected Python code:
         """Get iteration-specific modeling guidance."""
         if iteration_type == "traditional":
             return """
-For Traditional ML algorithms (XGBoost, LightGBM, CatBoost):
+For Traditional ML algorithms:
 - Focus on feature importance analysis
 - Try to extract features from image or text data if neccessary
 - Use early stopping for gradient boosting methods
 - Optimize for tabular data characteristics
-- Use optuna library for hyperparameter tuning
+- Use optuna library for hyperparameter tuning, limit the time of the hypertuning to 4800 second.
 """
         elif iteration_type == "custom_nn":
             return """
