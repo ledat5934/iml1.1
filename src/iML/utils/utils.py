@@ -89,3 +89,46 @@ def get_user_input_webui(prompt: str) -> str:
             user_input = line[len(WEBUI_INPUT_MARKER) :].strip()
             logger.debug(f"Received WebUI input: {user_input}")
             return user_input
+
+
+def smart_truncate_error(error_message: str, max_lines: int = 20, max_chars: int = 2048) -> str:
+    """
+    Smart truncation of error messages for LLM prompts.
+    
+    Args:
+        error_message: Full error message
+        max_lines: Maximum number of lines to keep (default: 20)
+        max_chars: Maximum number of characters to keep (default: 2048)
+    
+    Returns:
+        Truncated error message with context preservation
+    """
+    if not error_message or error_message.strip() == "":
+        return error_message
+    
+    lines = error_message.split('\n')
+    
+    # If already within limits, return as is
+    if len(lines) <= max_lines and len(error_message) <= max_chars:
+        return error_message
+    
+    # Strategy 1: Keep last N lines (most relevant for debugging)
+    if len(lines) > max_lines:
+        truncated_lines = lines[-max_lines:]
+        truncated_msg = '\n'.join(truncated_lines)
+        
+        # Add truncation notice
+        if len(lines) > max_lines:
+            prefix = f"[... truncated {len(lines) - max_lines} lines from beginning ...]\n"
+            truncated_msg = prefix + truncated_msg
+    else:
+        truncated_msg = error_message
+    
+    # Strategy 2: Character limit truncation if still too long
+    if len(truncated_msg) > max_chars:
+        # Keep last part which usually contains the actual error
+        keep_chars = max_chars - 100  # Reserve space for truncation notice
+        truncated_msg = truncated_msg[-keep_chars:]
+        truncated_msg = f"[... truncated {len(error_message) - keep_chars} characters ...]\n" + truncated_msg
+    
+    return truncated_msg

@@ -1,5 +1,15 @@
-pipeline_timeout: 28800
-per_execution_timeout: 28800
+# Enhanced configuration with per-iteration timeouts
+pipeline_timeout: 28800  # Overall pipeline timeout (8 hours)
+per_execution_timeout: 28800  # Default execution timeout (1 hour)
+
+# Per-iteration specific timeouts (in seconds)
+iteration_timeouts:
+  traditional: 7200     # 30 minutes - Traditional ML algorithms are typically faster
+  custom_nn: 7200      # 1 hour - Neural networks need more time for training
+  pretrained: 14400     # 40 minutes - Pretrained models, moderate complexity
+  
+# Fallback timeout for unknown iteration types
+default_iteration_timeout: 7200
 
 # Data Perception
 max_file_group_size_to_show: 5

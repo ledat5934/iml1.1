@@ -3,6 +3,7 @@ import json
 from typing import Dict, Any
 
 from .base_prompt import BasePrompt
+from ..utils.utils import smart_truncate_error
 
 class ModelingCoderPrompt(BasePrompt):
     """
@@ -86,6 +87,11 @@ The following preprocessing code, including a function `preprocess_data(file_pat
         )
 
         if previous_code and error_message:
+            # Use smart truncation for error message to save tokens and focus on relevant parts
+            max_lines = getattr(self.manager.config, 'max_error_lines_for_llm', 20)
+            max_chars = getattr(self.manager.config, 'max_error_message_length', 2048)
+            truncated_error = smart_truncate_error(error_message, max_lines=max_lines, max_chars=max_chars)
+            
             retry_context = f"""
 ## PREVIOUS ATTEMPT FAILED:
 The previously generated code failed with an error.
@@ -97,7 +103,7 @@ The previously generated code failed with an error.
 
 ### Error Message:
 ```
-{error_message}
+{truncated_error}
 ```
 
 ## FIX INSTRUCTIONS:
@@ -123,7 +129,7 @@ For Traditional ML algorithms:
 - Try to extract features from image or text data if neccessary
 - Use early stopping for gradient boosting methods
 - Optimize for tabular data characteristics
-- Use optuna library for hyperparameter tuning, limit the time of the hypertuning to 4800 second.
+- Use optuna library for hyperparameter tuning, limit the time of the hypertuning to 3600 second.
 """
         elif iteration_type == "custom_nn":
             return """

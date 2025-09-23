@@ -4,6 +4,10 @@ import uuid
 import subprocess
 import json
 import shutil
+import time
+import signal
+import threading
+import platform
 from pathlib import Path
 from typing import List, Dict
 from datetime import datetime
@@ -27,6 +31,44 @@ logging.basicConfig(level=logging.INFO)
 
 # Create a logger
 logger = logging.getLogger(__name__)
+
+class IterationTimeoutError(Exception):
+    """Custom exception for iteration timeout."""
+    pass
+
+def iteration_timeout_handler(signum, frame):
+    """Signal handler for iteration timeout (Unix/Linux only)."""
+    raise IterationTimeoutError("Iteration execution exceeded the time limit.")
+
+class IterationTimer:
+    """Cross-platform iteration timer using threading."""
+    
+    def __init__(self, timeout_seconds, callback):
+        self.timeout_seconds = timeout_seconds
+        self.callback = callback
+        self.timer = None
+        self.is_expired = False
+    
+    def start(self):
+        """Start the timeout timer."""
+        self.is_expired = False
+        self.timer = threading.Timer(self.timeout_seconds, self._timeout_occurred)
+        self.timer.start()
+    
+    def cancel(self):
+        """Cancel the timeout timer."""
+        if self.timer:
+            self.timer.cancel()
+    
+    def _timeout_occurred(self):
+        """Internal method called when timeout occurs."""
+        self.is_expired = True
+        self.callback()
+    
+    def check_timeout(self):
+        """Check if timeout has occurred."""
+        if self.is_expired:
+            raise IterationTimeoutError("Iteration execution exceeded the time limit.")
 
 
 class Manager:
@@ -104,6 +146,109 @@ class Manager:
             "output_folder": output_folder,
             
         }
+
+    def get_iteration_timeout(self, iteration_type):
+        """Get the execution timeout for a specific iteration type."""
+        # Check if iteration_timeouts configuration exists
+        if hasattr(self.config, 'iteration_timeouts') and self.config.iteration_timeouts:
+            timeout = self.config.iteration_timeouts.get(iteration_type)
+            if timeout:
+                return timeout
+        
+        # Fallback to default_iteration_timeout if configured
+        if hasattr(self.config, 'default_iteration_timeout'):
+            return self.config.default_iteration_timeout
+            
+        # Final fallback to per_execution_timeout
+        return self.config.per_execution_timeout
+    
+    def _run_iteration_with_timeout(self, iteration_type, iteration_timeout):
+        """Run iteration with cross-platform timeout handling."""
+        is_windows = platform.system() == "Windows"
+        
+        if is_windows:
+            # Use threading-based timeout for Windows
+            timeout_occurred = threading.Event()
+            
+            def timeout_callback():
+                timeout_occurred.set()
+            
+            timer = IterationTimer(iteration_timeout, timeout_callback)
+            timer.start()
+            
+            try:
+                # Run the iteration pipeline with periodic timeout checks
+                success = self._run_iteration_pipeline_with_checks(iteration_type, timeout_occurred)
+                return success
+            finally:
+                timer.cancel()
+                
+        else:
+            # Use signal-based timeout for Unix/Linux
+            original_handler = signal.signal(signal.SIGALRM, iteration_timeout_handler)
+            signal.alarm(iteration_timeout)
+            
+            try:
+                success = self._run_iteration_pipeline(iteration_type)
+                return success
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, original_handler)
+    
+    def _run_iteration_pipeline_with_checks(self, iteration_type, timeout_occurred):
+        """Run iteration pipeline with periodic timeout checks for Windows."""
+        try:
+            # Step 1: Run guideline agent
+            if timeout_occurred.is_set():
+                raise IterationTimeoutError("Iteration timeout occurred before guideline generation")
+                
+            guideline = self.guideline_agent(iteration_type=iteration_type)
+            if "error" in guideline:
+                logger.error(f"Guideline generation failed: {guideline['error']}")
+                return False
+            self.guideline = guideline
+            logger.info(f"Guideline generated successfully for {iteration_type}.")
+
+            # Step 2: Run Preprocessing Coder Agent
+            if timeout_occurred.is_set():
+                raise IterationTimeoutError("Iteration timeout occurred before preprocessing")
+                
+            preprocessing_code_result = self.preprocessing_coder_agent(iteration_type=iteration_type)
+            if preprocessing_code_result.get("status") == "failed":
+                logger.error(f"Preprocessing code generation failed: {preprocessing_code_result.get('error')}")
+                return False
+            self.preprocessing_code = preprocessing_code_result.get("code")
+            logger.info("Preprocessing code generated and validated successfully.")
+
+            # Step 3: Run Modeling Coder Agent
+            if timeout_occurred.is_set():
+                raise IterationTimeoutError("Iteration timeout occurred before modeling")
+                
+            modeling_code_result = self.modeling_coder_agent(iteration_type=iteration_type)
+            if modeling_code_result.get("status") == "failed":
+                logger.error(f"Modeling code generation failed: {modeling_code_result.get('error')}")
+                return False
+            self.modeling_code = modeling_code_result.get("code")
+            logger.info("Modeling code generated successfully.")
+
+            # Step 4: Run Assembler Agent
+            if timeout_occurred.is_set():
+                raise IterationTimeoutError("Iteration timeout occurred before assembly")
+                
+            assembler_result = self.assembler_agent(iteration_type=iteration_type)
+            if assembler_result.get("status") == "failed":
+                logger.error(f"Final code assembly and execution failed: {assembler_result.get('error')}")
+                return False
+            self.assembled_code = assembler_result.get("code")
+            logger.info("Final script generated and executed successfully.")
+            
+            return True
+            
+        except IterationTimeoutError:
+            raise  # Re-raise timeout error
+        except Exception as e:
+            logger.error(f"Error in iteration pipeline: {e}")
+            return False
 
     def run_pipeline_partial(self, stop_after="guideline"):
         """Run pipeline up to a specific checkpoint."""
@@ -381,7 +526,9 @@ class Manager:
         # Run each iteration
         iteration_paths = []
         for i, iteration in enumerate(iterations, 1):
+            iteration_timeout = self.get_iteration_timeout(iteration['name'])
             logger.info(f"=== Starting Iteration {i}: {iteration['description']} ===")
+            logger.info(f"Timeout set for this iteration: {iteration_timeout} seconds ({iteration_timeout/60:.1f} minutes)")
             
             # Create iteration-specific output folder
             iteration_output = os.path.join(original_output_folder, iteration['folder'])
@@ -391,12 +538,32 @@ class Manager:
             # Temporarily change output folder for this iteration
             self.output_folder = iteration_output
             
-            # Run iteration-specific pipeline
-            success = self._run_iteration_pipeline(iteration['name'])
-            if not success:
-                logger.error(f"Iteration {i} ({iteration['name']}) failed!")
-            else:
-                logger.info(f"=== Iteration {i} completed successfully ===")
+            # Track iteration start time
+            iteration_start_time = time.time()
+            
+            success = False
+            try:
+                # Run iteration with cross-platform timeout handling
+                success = self._run_iteration_with_timeout(iteration['name'], iteration_timeout)
+                
+                # Calculate iteration duration
+                iteration_duration = time.time() - iteration_start_time
+                
+                if success:
+                    logger.info(f"=== Iteration {i} completed successfully in {iteration_duration:.1f} seconds ===")
+                else:
+                    logger.error(f"Iteration {i} ({iteration['name']}) failed after {iteration_duration:.1f} seconds!")
+                    
+            except IterationTimeoutError:
+                iteration_duration = time.time() - iteration_start_time
+                logger.warning(f"⏰ Iteration {i} ({iteration['name']}) timed out after {iteration_timeout} seconds!")
+                logger.info(f"Moving to next iteration...")
+                success = False
+                
+            except Exception as e:
+                iteration_duration = time.time() - iteration_start_time
+                logger.error(f"Iteration {i} ({iteration['name']}) failed with error: {e}")
+                success = False
         
         # Restore original output folder
         self.output_folder = original_output_folder
@@ -547,17 +714,38 @@ class Manager:
         original_output_folder = self.output_folder
         self.output_folder = iteration_output
         
+        # Get iteration timeout
+        iteration_timeout = self.get_iteration_timeout(iteration_type)
         logger.info(f"=== Running {info['description']} ===")
+        logger.info(f"Timeout set for this iteration: {iteration_timeout} seconds ({iteration_timeout/60:.1f} minutes)")
         
-        # Run iteration-specific pipeline
-        success = self._run_iteration_pipeline(iteration_type)
-        if success:
-            logger.info(f"Single-iteration pipeline ({iteration_type}) completed successfully!")
-        else:
-            logger.error(f"Single-iteration pipeline ({iteration_type}) failed!")
+        # Track iteration start time
+        iteration_start_time = time.time()
         
-        # Restore original output folder
-        self.output_folder = original_output_folder
+        success = False
+        try:
+            # Run iteration with cross-platform timeout handling
+            success = self._run_iteration_with_timeout(iteration_type, iteration_timeout)
+            
+            iteration_duration = time.time() - iteration_start_time
+            if success:
+                logger.info(f"Single-iteration pipeline ({iteration_type}) completed successfully in {iteration_duration:.1f} seconds!")
+            else:
+                logger.error(f"Single-iteration pipeline ({iteration_type}) failed after {iteration_duration:.1f} seconds!")
+                
+        except IterationTimeoutError:
+            iteration_duration = time.time() - iteration_start_time
+            logger.warning(f"⏰ Single iteration ({iteration_type}) timed out after {iteration_timeout} seconds!")
+            success = False
+            
+        except Exception as e:
+            iteration_duration = time.time() - iteration_start_time
+            logger.error(f"Single iteration ({iteration_type}) failed with error: {e}")
+            success = False
+            
+        finally:
+            # Restore original output folder
+            self.output_folder = original_output_folder
     
     def _run_shared_analysis(self):
         """Run the shared analysis steps (description, profiling, summarization, model retrieval)."""

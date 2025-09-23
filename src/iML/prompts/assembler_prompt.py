@@ -3,6 +3,7 @@ import json
 from typing import Dict, Any
 
 from .base_prompt import BasePrompt
+from ..utils.utils import smart_truncate_error
 
 class AssemblerPrompt(BasePrompt):
     """
@@ -46,13 +47,18 @@ Based on the context above, generate the complete and corrected Python code. The
         
         retry_context = ""
         if error_message:
+            # Use smart truncation for error message to save tokens and focus on relevant parts
+            max_lines = getattr(self.manager.config, 'max_error_lines_for_llm', 20)
+            max_chars = getattr(self.manager.config, 'max_error_message_length', 2048)
+            truncated_error = smart_truncate_error(error_message, max_lines=max_lines, max_chars=max_chars)
+            
             retry_context = f"""
 ## PREVIOUS ATTEMPT FAILED:
 The code above failed with the following error.
 
 ### Error Message:
 ```
-{error_message}
+{truncated_error}
 ```
 
 ### FIX INSTRUCTIONS:
