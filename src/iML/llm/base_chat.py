@@ -175,15 +175,17 @@ class BaseAssistantChat(BaseModel):
         }
 
     @retry(stop=stop_after_attempt(6), wait=wait_exponential(multiplier=32, min=32, max=128), after=log_retry_attempt)
-    def assistant_chat(self, message: str, max_lines: int = 1000) -> str:
+    def assistant_chat(self, message: str, max_lines: int = None) -> str:
         """Send a message and get response using LangGraph."""
         if not self.app:
             raise RuntimeError("Conversation not initialized. Call initialize_conversation first.")
 
-        lines = message.split('\n')
-        if len(lines) > max_lines:
-            message = '\n'.join(lines[:max_lines])
-            logger.warning(f"Prompt truncated to {max_lines} lines.")
+        # Disable prompt truncation by default
+        if max_lines is not None:
+            lines = message.split('\n')
+            if len(lines) > max_lines:
+                message = '\n'.join(lines[:max_lines])
+                logger.warning(f"Prompt truncated to {max_lines} lines.")
 
         thread_id = str(uuid.uuid4())
         config = {"configurable": {"thread_id": thread_id}}

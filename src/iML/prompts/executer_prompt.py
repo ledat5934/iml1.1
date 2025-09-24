@@ -45,9 +45,11 @@ Even if the code executed without throwing errors, it might still have issues wi
         self.manager.save_and_log_states(content=stdout, save_name="stdout.txt", add_uuid=True)
         self.manager.save_and_log_states(content=stderr, save_name="stderr.txt", add_uuid=True)
 
-        # Truncate outputs if they exceed max length
-        stdout = self._truncate_output_mid(stdout, self.llm_config.max_stdout_length)
-        stderr = self._truncate_output_mid(stderr, self.llm_config.max_stderr_length)
+        # Truncate outputs if they exceed max length (use very large defaults to avoid truncation)
+        max_stdout_length = getattr(self.llm_config, 'max_stdout_length', 1000000)  # 1M chars default
+        max_stderr_length = getattr(self.llm_config, 'max_stderr_length', 1000000)  # 1M chars default
+        stdout = self._truncate_output_mid(stdout, max_stdout_length)
+        stderr = self._truncate_output_mid(stderr, max_stderr_length)
 
         self.manager.save_and_log_states(
             content=stdout, save_name="stdout(truncated).txt", add_uuid=True

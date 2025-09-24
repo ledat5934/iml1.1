@@ -30,6 +30,9 @@ llm: &default_llm
   multi_turn: False
   template: null
   add_coding_format_instruction: false
+  # Output length limits (set to very large values to avoid truncation)
+  max_stdout_length: 1000000  # 1M characters
+  max_stderr_length: 1000000  # 1M characters
 
 description_analyzer:
   <<: *default_llm
