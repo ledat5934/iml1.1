@@ -14,6 +14,35 @@ class HyperparameterTuningPrompt(BasePrompt):
         return """
 You are an expert ML engineer. Your task is to analyze the provided successful ML pipeline code and generate a Python script that performs hyperparameter tuning using Optuna.
 
+🚨🚨🚨 **CRITICAL OUTPUT FILE REQUIREMENT - READ FIRST** 🚨🚨🚨
+🔥 **ABSOLUTELY MANDATORY - NO EXCEPTIONS**: Your script MUST generate `submission_tuned.csv` 🔥
+
+🚫🚫🚫 **FORBIDDEN FILE NAMES - NEVER USE THESE** 🚫🚫🚫
+- ❌ `submission.csv` (belongs to assembler phase)
+- ❌ `predictions.csv` (generic name)
+- ❌ `results.csv` (generic name) 
+- ❌ `output.csv` (generic name)
+- ✅ ONLY `submission_tuned.csv` is acceptable ✅
+
+🔴🔴🔴 **EXTREMELY IMPORTANT - READ CAREFULLY** 🔴🔴🔴
+- The hyperparameter tuning phase is SPECIFICALLY REQUIRED to generate `submission_tuned.csv`
+- This file name distinguishes tuned results from the original `submission.csv` created by the assembler phase
+- ANY OTHER FILENAME (including `submission.csv`) WILL BE CONSIDERED A CRITICAL FAILURE
+- The system will automatically check for the presence of `submission_tuned.csv` and report failure if not found
+- This requirement is HARDCODED into the system architecture and CANNOT be bypassed
+
+📂 **FILE LOCATION REQUIREMENTS**:
+- Save `submission_tuned.csv` in the same directory where the hyperparameter tuning script is executed
+- Use relative path `'submission_tuned.csv'` (not absolute paths)
+- The file will be created in current working directory (`os.getcwd()`)
+- Print absolute path after creation: `print(f"File saved at: {{os.path.abspath('submission_tuned.csv')}}")`
+
+🔍 **MANDATORY FILE VERIFICATION** 🔍
+Your script MUST include these verification steps:
+1. Check that NO `submission.csv` file exists in the current directory before creating output
+2. After creating `submission_tuned.csv`, verify it exists and has content
+3. Print absolute path of created file for confirmation
+
 ## SUCCESSFUL PIPELINE CODE TO ANALYZE
 Below is the complete, working pipeline code that successfully trained a model and generated predictions:
 
@@ -28,12 +57,6 @@ Analyze the above code and create a hyperparameter tuning script that:
 3. **Creates a tunable version** of the model training process
 4. **CRITICALLY IMPORTANT**: After optimization, trains a final model with best parameters and creates `submission_tuned.csv`
 
-🚨🚨🚨 **CRITICAL FILE NAMING REQUIREMENT** 🚨🚨🚨
-- Output file MUST be named `submission_tuned.csv` (NOT `submission.csv`)
-- This script runs in hyperparameter tuning phase, which REQUIRES `submission_tuned.csv` 
-- The file should be saved in current working directory (same directory as this script)
-- Use absolute path check: `os.path.abspath('submission_tuned.csv')` to confirm location
-
 ## TUNING SETTINGS
 - Number of trials: {n_trials}
 - Direction: {direction}
@@ -42,37 +65,15 @@ Analyze the above code and create a hyperparameter tuning script that:
 - Timeout (seconds): {timeout}
 {fast_training_instructions}
 
-## 🚨🚨🚨 CRITICAL REQUIREMENT: FINAL PREDICTIONS & SCORE 🚨🚨🚨
-🔥 **ABSOLUTELY MANDATORY - NO EXCEPTIONS**: Your script MUST include a final training step that:
-1. Takes the best hyperparameters found by Optuna
-2. Trains a final model with these best parameters on the full training data
-3. Generates predictions on the test dataset
-4. 🚨 **SAVES PREDICTIONS TO `submission_tuned.csv` - NOT `submission.csv`** 🚨
-5. 📈 **PRINT THE BEST SCORE** using a print statement like `print(f'Best score: {{study.best_value}}')` so it can be automatically extracted.
+## FINAL TRAINING STEP REQUIREMENTS
+🔥 **ABSOLUTELY MANDATORY**: After optimization, your script MUST include a final training step that:
+1. **Extracts the best hyperparameters** found by Optuna: `best_params = study.best_params`
+2. **Re-trains a NEW final model** using these best hyperparameters on the FULL training dataset
+3. **Uses the newly trained model** (with best hyperparameters) to generate predictions on test data
+4. 🚨 **SAVES PREDICTIONS TO `submission_tuned.csv`** 🚨
+5. 📈 **PRINT THE BEST SCORE** using `print(f'Best score: {{study.best_value}}')`
 
-⚠️ **CRITICAL**: The output file MUST be named `submission_tuned.csv` - NOT `submission.csv`
-⚠️ **FAILURE TO USE THE CORRECT FILENAME WILL CAUSE THE ENTIRE PIPELINE TO FAIL**
-⚠️ This is NOT optional - every hyperparameter tuning script must produce `submission_tuned.csv`.
-
-🔴🔴🔴 **EXTREMELY IMPORTANT - READ CAREFULLY** 🔴🔴🔴
-- The hyperparameter tuning phase is SPECIFICALLY REQUIRED to generate `submission_tuned.csv`
-- This file name distinguishes tuned results from the original `submission.csv` created by the assembler phase
-- ANY OTHER FILENAME (including `submission.csv`) WILL BE CONSIDERED A CRITICAL FAILURE
-- The system will automatically check for the presence of `submission_tuned.csv` and report failure if not found
-- This requirement is HARDCODED into the system architecture and CANNOT be bypassed
-
-🚫🚫🚫 **FORBIDDEN FILE NAMES - NEVER USE THESE** 🚫🚫🚫
-- ❌ `submission.csv` (belongs to assembler phase)
-- ❌ `predictions.csv` (generic name)
-- ❌ `results.csv` (generic name)
-- ❌ `output.csv` (generic name)
-- ✅ ONLY `submission_tuned.csv` is acceptable ✅
-
-🔍 **MANDATORY FILE VERIFICATION** 🔍
-Your script MUST include these verification steps:
-1. Check that NO `submission.csv` file exists in the current directory before creating output
-2. After creating `submission_tuned.csv`, verify it exists and has content
-3. Print absolute path of created file for confirmation
+⚠️ **CRITICAL**: You must TRAIN a new model with best_params, NOT just generate predictions without training!
 
 ## HYPERPARAMETERS TO TUNE
 Select a small set of the most impactful hyperparameters (2-4) to tune. Avoid tuning trivial parameters to save time and resources.
@@ -94,21 +95,10 @@ Select a small set of the most impactful hyperparameters (2-4) to tune. Avoid tu
    - Trains the model with suggested hyperparameters and returns validation accuracy.
 6. Optimize the study with `n_trials={n_trials}` and `timeout={timeout}`.
 7. After tuning, save best parameters to `hyperparam_results.json` and the study object to `optuna_study.pkl`.
-8. 🚨 **CRITICALLY IMPORTANT - FINAL TRAINING STEP** 🚨: After optimization completes, use the best parameters to:
-   - Train a final model with the best hyperparameters on the full training dataset
-   - Generate predictions on the test dataset 
-   - 🔥 **Save predictions to `submission_tuned.csv` (NEVER submission.csv)** 🔥 in current working directory
-9. 🚨 **This final training step is ABSOLUTELY MANDATORY and must be included in your script** 🚨
-10. 🚨 **THE OUTPUT FILE MUST BE NAMED `submission_tuned.csv` - ANY OTHER NAME WILL CAUSE FAILURE** 🚨
-10.1. 🔴 **PHASE DISTINCTION**: Remember that assembler phase creates `submission.csv`, hyperparameter tuning phase MUST create `submission_tuned.csv`
-10.2. 📂 **FILE LOCATION REQUIREMENTS**:
-    - Save `submission_tuned.csv` in the same directory where the hyperparameter tuning script is executed
-    - Use relative path `'submission_tuned.csv'` (not absolute paths)
-    - The file will be created in current working directory (`os.getcwd()`)
-    - Print absolute path after creation: `print(f"File saved at: {{os.path.abspath('submission_tuned.csv')}}")`
-11. 📈 **PRINT THE BEST SCORE**: After optimization, you MUST print the best score from the study using `print(f"Best score: {{study.best_value}}")`.
-12. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`.
-13. Return only the complete Python code in a ```python ... ``` block.
+8. 🚨 **FINAL TRAINING STEP**: After optimization, use best_params to CREATE and TRAIN a new final model, then generate predictions
+9. 📈 **PRINT THE BEST SCORE**: After optimization, print the best score using `print(f"Best score: {{study.best_value}}")`
+10. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`
+11. Return only the complete Python code in a ```python ... ``` block
 
 ## EXAMPLE STRUCTURE
 ```python
@@ -156,20 +146,22 @@ if __name__ == "__main__":
         
         print("Training final model with best parameters...")
         best_params = study.best_params
+        print(f"Best parameters found: {{best_params}}")
         
         # Load and preprocess data exactly like in successful code
         # ... copy preprocessing logic from successful code ...
         
-        # Train final model with best hyperparameters
-        # ... use best_params to configure and train model ...
+        # Create NEW final model with best hyperparameters and train it
+        # final_model = ModelClass(**best_params)  # Configure with best_params
+        # final_model.fit(X_train_full, y_train_full)  # Train on FULL data
         
-        # Generate predictions on test data
+        # Generate predictions using the TRAINED model with best hyperparameters
         # test_predictions = final_model.predict(X_test_processed)
         
-        # 🔥🔥🔥 Create submission_tuned.csv (ABSOLUTELY MANDATORY - NOT submission.csv) 🔥🔥🔥
+        # 🔥🔥🔥 Create submission_tuned.csv using predictions from TRAINED model 🔥🔥🔥
         # submission_df = pd.DataFrame({{{{'id': test_ids, 'target': test_predictions}}}})
-        # submission_df.to_csv('submission_tuned.csv', index=False)  # MUST BE submission_tuned.csv
-        print("🎉 Final predictions saved to submission_tuned.csv 🎉")
+        # submission_df.to_csv('submission_tuned.csv', index=False)  # REMEMBER: NOT submission.csv!
+        print("🎉 Final predictions saved to submission_tuned.csv using best hyperparameters! 🎉")
         
         # 🔍 VERIFY FILE CREATION - DO NOT REMOVE THIS CHECK
         if os.path.exists('submission_tuned.csv'):
