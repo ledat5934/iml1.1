@@ -84,6 +84,8 @@ def run_automl_pipeline(input_data_folder: str, output_folder: str = None, confi
             else:
                 manager.run_pipeline()
         elif checkpoint_mode == "multi-iteration":
+            # 🚨 IMPORTANT: Multi-iteration pipeline includes hyperparameter tuning phase
+            # 🚨 Each iteration MUST generate submission_tuned.csv (not submission.csv) during tuning
             manager.run_pipeline_multi_iteration()
         elif checkpoint_mode == "partial":
             success = manager.run_pipeline_partial(stop_after=checkpoint_action)

@@ -906,8 +906,17 @@ class Manager:
                     logger.info(f"✅ ✅ CORRECT: Using tuned submission file: {tuned_submission_path} ✅ ✅")
                 else:
                     self.final_submission_path = assembler_result.get("submission_path")
-                    logger.error(f"🚨 ERROR: submission_tuned.csv not found! Using original: {self.final_submission_path}")
-                    logger.error(f"🚨 Hyperparameter tuning should have created submission_tuned.csv! 🚨")
+                    logger.error("🚨" + "="*70)
+                    logger.error("🚨 HYPERPARAMETER TUNING PHASE FAILED TO CREATE REQUIRED FILE")
+                    logger.error("🚨" + "="*70)
+                    logger.error(f"🚨 MISSING FILE: submission_tuned.csv")
+                    logger.error(f"🚨 EXPECTED PATH: {tuned_submission_path}")
+                    logger.error(f"🚨 FALLBACK TO: {self.final_submission_path}")
+                    logger.error(f"🚨")
+                    logger.error(f"🚨 CRITICAL ISSUE: Hyperparameter tuning phase MUST create submission_tuned.csv")
+                    logger.error(f"🚨 This is a CORE REQUIREMENT of the hyperparameter tuning phase")
+                    logger.error(f"🚨 The system architecture depends on this file being created")
+                    logger.error("🚨" + "="*70)
         else:
             # For non-tuning iterations, use original submission
             self.final_submission_path = assembler_result.get("submission_path")

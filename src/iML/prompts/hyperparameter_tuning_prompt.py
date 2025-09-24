@@ -48,6 +48,13 @@ Analyze the above code and create a hyperparameter tuning script that:
 ⚠️ **FAILURE TO USE THE CORRECT FILENAME WILL CAUSE THE ENTIRE PIPELINE TO FAIL**
 ⚠️ This is NOT optional - every hyperparameter tuning script must produce `submission_tuned.csv`.
 
+🔴🔴🔴 **EXTREMELY IMPORTANT - READ CAREFULLY** 🔴🔴🔴
+- The hyperparameter tuning phase is SPECIFICALLY REQUIRED to generate `submission_tuned.csv`
+- This file name distinguishes tuned results from the original `submission.csv` created by the assembler phase
+- ANY OTHER FILENAME (including `submission.csv`) WILL BE CONSIDERED A CRITICAL FAILURE
+- The system will automatically check for the presence of `submission_tuned.csv` and report failure if not found
+- This requirement is HARDCODED into the system architecture and CANNOT be bypassed
+
 ## HYPERPARAMETERS TO TUNE
 Select a small set of the most impactful hyperparameters (2-4) to tune. Avoid tuning trivial parameters to save time and resources.
 
@@ -72,8 +79,10 @@ Select a small set of the most impactful hyperparameters (2-4) to tune. Avoid tu
    - Train a final model with the best hyperparameters on the full training dataset
    - Generate predictions on the test dataset 
    - 🔥 **Save predictions to `submission_tuned.csv` (NEVER submission.csv)** 🔥 in current working directory
+   - ✅ **VERIFY the file was created** by checking `os.path.exists('submission_tuned.csv')`
 9. 🚨 **This final training step is ABSOLUTELY MANDATORY and must be included in your script** 🚨
 10. 🚨 **THE OUTPUT FILE MUST BE NAMED `submission_tuned.csv` - ANY OTHER NAME WILL CAUSE FAILURE** 🚨
+10.1. 🔴 **PHASE DISTINCTION**: Remember that assembler phase creates `submission.csv`, hyperparameter tuning phase MUST create `submission_tuned.csv`
 11. 📈 **PRINT THE BEST SCORE**: After optimization, you MUST print the best score from the study using `print(f"Best score: {{study.best_value}}")`.
 12. Wrap the main block with `if __name__ == '__main__'`, handle exceptions printing to stderr and exit with `sys.exit(1)`.
 13. Return only the complete Python code in a ```python ... ``` block.
@@ -130,9 +139,18 @@ if __name__ == "__main__":
         # test_predictions = final_model.predict(X_test_processed)
         
         # 🔥🔥🔥 Create submission_tuned.csv (ABSOLUTELY MANDATORY - NOT submission.csv) 🔥🔥🔥
+        # 🚨 CRITICAL: The filename MUST be 'submission_tuned.csv' - NO OTHER NAME IS ACCEPTABLE 🚨
         # submission_df = pd.DataFrame({{{{'id': test_ids, 'target': test_predictions}}}})
         # submission_df.to_csv('submission_tuned.csv', index=False)  # MUST BE submission_tuned.csv
         print("🎉 Final predictions saved to submission_tuned.csv 🎉")
+        
+        # 🔍 VERIFY FILE CREATION - DO NOT REMOVE THIS CHECK
+        import os
+        if os.path.exists('submission_tuned.csv'):
+            print("✅ CONFIRMED: submission_tuned.csv file created successfully")
+        else:
+            print("🚨 ERROR: submission_tuned.csv file was NOT created!", file=sys.stderr)
+            sys.exit(1)
         
     except Exception as e:
         print(f"Error: {{{{e}}}}", file=sys.stderr)
