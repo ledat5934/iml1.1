@@ -79,7 +79,6 @@ Select a small set of the most impactful hyperparameters (2-4) to tune. Avoid tu
    - Train a final model with the best hyperparameters on the full training dataset
    - Generate predictions on the test dataset 
    - 🔥 **Save predictions to `submission_tuned.csv` (NEVER submission.csv)** 🔥 in current working directory
-   - ✅ **VERIFY the file was created** by checking `os.path.exists('submission_tuned.csv')`
 9. 🚨 **This final training step is ABSOLUTELY MANDATORY and must be included in your script** 🚨
 10. 🚨 **THE OUTPUT FILE MUST BE NAMED `submission_tuned.csv` - ANY OTHER NAME WILL CAUSE FAILURE** 🚨
 10.1. 🔴 **PHASE DISTINCTION**: Remember that assembler phase creates `submission.csv`, hyperparameter tuning phase MUST create `submission_tuned.csv`
