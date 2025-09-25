@@ -40,11 +40,17 @@ MUST OUTPUT ONLY VALID JSON with these keys:
         "train_file": str | null,
         "test_file": str | null,
         "sample_submission_file": str | null
+    }},
+    "id_format_analysis": {{
+        "has_file_extensions": bool,
+        "detected_extensions": [str],
+        "format_notes": [str]
     }}
 }}
 
 Rules:
-- Use the provided profiling_result JSON's "summaries" and "profiles" to infer signals succinctly.
+- Use the provided profiling_result JSON's "summaries", "profiles", and "id_format_analysis" to infer signals succinctly.
+- Pay special attention to ID format analysis for file extension information.
 - If unsure, set fields to null and explain briefly in notes.
 - Do NOT output markdown fences. Output pure JSON only.
 
@@ -64,11 +70,13 @@ RAW_PROFILING:
         # Compact the profiling_result before sending to LLM to reduce noise
         summaries = profiling_result.get("summaries", {})
         profiles = profiling_result.get("profiles", {})
+        id_format_analysis = profiling_result.get("id_format_analysis", {})
 
         compact = {
             "summaries": summaries,  # already compact in agent; keys: file_stem: {n_rows,n_cols,dtypes,missing_pct,file_size_mb}
             # profiles can be large; we keep only light parts if present
             "profiles_light": {},
+            "id_format_analysis": id_format_analysis,  # include ID format analysis
         }
 
         # take only a very small subset from profiles: for each file, variable types and n_unique if available

@@ -40,11 +40,11 @@ class GuidelinePrompt(BasePrompt):
 {variables_summary_str}
 ```
 
+{id_format_section}
+
 ## IMPORTANT CONSTRAINTS FOR REPRODUCIBILITY:
 - ALWAYS use random_state=42 for ALL random operations (train_test_split, cross_validation, model initialization)
 - Use simple random split strategy for train/test splitting
-- Implement 3-fold cross-validation for model evaluation
-- Return mean validation score across 3 folds
 
 ## Guideline Generation Principles & Examples
 Your response must be guided by the following principles. Refer to these examples to understand the required level of detail.
@@ -97,14 +97,16 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
         "recommended_algorithms": ["one most suitable algorithm"],
         "model_selection": ["model_name1"](pretrained model name if using pretrained model),
         "eval_metrics": [],
-        "random_state": 42
+        "random_state": 42,
+        "notes": "additional notes"
     }},
     "preprocessing": {{
         "data_cleaning": ["specific step 1", "specific step 2"],
         "feature_engineering": ["specific technique 1", "specific technique 2"],
         "missing_values": ["strategy 1", "strategy 2"],
         "feature_selection": ["method 1", "method 2"],
-        "data_splitting": {{"train": 0.8, "val": 0.2, "strategy": "simple_random", "random_state": 42}}
+        "data_splitting": {{"train": 0.8, "val": 0.2, "strategy": "simple_random", "random_state": 42}},
+        "notes": "additional notes"
     }},
     "evaluation": {{
         "metrics": ["metric 1", "metric 2"],
@@ -200,6 +202,9 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
         variables_summary_str = json.dumps(variables_summary_dict, indent=2, ensure_ascii=False)
         model_suggestions_str = json.dumps(model_suggestions or {}, indent=2, ensure_ascii=False)
         
+        # Generate ID format section
+        id_format_section = self._generate_id_format_section(profiling_result)
+        
         # Generate algorithm constraint based on iteration type
         algorithm_constraint = self._get_algorithm_constraint(iteration_type)
 
@@ -213,7 +218,8 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
             output_data=output_data,
             submission_file_description=submission_file_description,
             model_suggestions_str=model_suggestions_str,
-            algorithm_constraint=algorithm_constraint
+            algorithm_constraint=algorithm_constraint,
+            id_format_section=id_format_section
         )
         
         self.manager.save_and_log_states(prompt, "guideline_prompt.txt")
@@ -230,6 +236,46 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
         else:
             # Default for backward compatibility
             return "None"
+
+    def _generate_id_format_section(self, profiling_result: Dict[str, Any]) -> str:
+        """Generate ID format analysis section for the prompt."""
+        # Check if we have ID format analysis
+        id_format_analysis = profiling_result.get('id_format_analysis', {})
+        
+        if not id_format_analysis:
+            return ""
+        
+        has_extensions = id_format_analysis.get('has_file_extensions', False)
+        detected_extensions = id_format_analysis.get('detected_extensions', [])
+        format_notes = id_format_analysis.get('format_notes', [])
+        submission_analysis = id_format_analysis.get('submission_format_analysis')
+        
+        if not has_extensions and not format_notes:
+            return ""
+        
+        section_lines = ["## ID FORMAT ANALYSIS:"]
+        
+        if has_extensions:
+            section_lines.append(f"- **ID columns contain file extensions**: {', '.join(detected_extensions)}")
+        
+        if submission_analysis:
+            submission_has_ext = submission_analysis.get('submission_has_extensions', False)
+            submission_file = submission_analysis.get('submission_file', 'N/A')
+            section_lines.append(f"- **Submission format detected**: File extensions {'required' if submission_has_ext else 'NOT required'} in {submission_file}")
+        
+        if format_notes:
+            section_lines.append("- **CRITICAL NOTES**:")
+            for note in format_notes:
+                section_lines.append(f"  * {note}")
+        
+        section_lines.extend([
+            "",
+            "**PREPROCESSING NOTE**: If ID format mismatch detected, ensure preprocessing handles ID transformation correctly.",
+            "**MODELING NOTE**: When creating submission files, ensure ID format matches exactly what's expected.",
+            ""
+        ])
+        
+        return "\n".join(section_lines)
 
     def parse(self, response: str) -> Dict[str, Any]:
         """Parse JSON response from LLM."""

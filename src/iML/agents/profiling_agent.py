@@ -1,7 +1,8 @@
 import json
 import logging
+import re
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 
 import pandas as pd
 from tqdm import tqdm
@@ -65,10 +66,14 @@ class ProfilingAgent(BaseAgent):
             if profile_content:
                 all_profiles[file_stem] = profile_content
             
+        # Add ID format analysis
+        id_format_analysis = self._analyze_id_formats(existing_csv_paths)
+        
         # Combine back into a single object
         profiling_result = {
             "summaries": all_summaries,
-            "profiles": all_profiles
+            "profiles": all_profiles,
+            "id_format_analysis": id_format_analysis
         }
 
         # Save aggregated results to the run's states directory
@@ -158,3 +163,161 @@ class ProfilingAgent(BaseAgent):
             logger.error(f"Failed to profile {csv_path.name}: {e}")
             error_summary = {"error": str(e), "file": str(csv_path)}
             return error_summary, None
+
+    def _analyze_id_formats(self, csv_paths: List[str]) -> Dict[str, Any]:
+        """Analyze ID column formats across CSV files to detect file extensions."""
+        logger.info("Analyzing ID formats for file extensions...")
+        
+        analysis_result = {
+            "has_file_extensions": False,
+            "detected_extensions": [],
+            "id_columns_info": {},
+            "submission_format_analysis": None,
+            "format_notes": []
+        }
+        
+        # Common file extensions to look for
+        common_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.csv', '.txt', '.pdf', '.mp4', '.avi', '.wav', '.mp3']
+        extension_pattern = r'\.(jpg|jpeg|png|gif|bmp|tiff|csv|txt|pdf|mp4|avi|wav|mp3)$'
+        
+        detected_extensions = set()
+        
+        for csv_path_str in csv_paths:
+            try:
+                csv_path = Path(csv_path_str)
+                df = pd.read_csv(csv_path)
+                
+                # Identify potential ID columns
+                id_columns = self._identify_id_columns(df)
+                
+                for col_name in id_columns:
+                    col_info = self._analyze_id_column(df[col_name], col_name, extension_pattern)
+                    
+                    if col_info["has_extensions"]:
+                        analysis_result["has_file_extensions"] = True
+                        detected_extensions.update(col_info["extensions_found"])
+                        analysis_result["format_notes"].append(
+                            f"Column '{col_name}' in {csv_path.name} contains file extensions: {col_info['extensions_found']}"
+                        )
+                    
+                    analysis_result["id_columns_info"][f"{csv_path.stem}_{col_name}"] = col_info
+                    
+            except Exception as e:
+                logger.warning(f"Failed to analyze ID formats in {csv_path_str}: {e}")
+        
+        analysis_result["detected_extensions"] = sorted(list(detected_extensions))
+        
+        # Analyze submission format if available
+        submission_analysis = self._analyze_submission_format()
+        if submission_analysis:
+            analysis_result["submission_format_analysis"] = submission_analysis
+            
+            # Compare formats and add notes
+            if analysis_result["has_file_extensions"] and submission_analysis.get("submission_has_extensions") is False:
+                analysis_result["format_notes"].append(
+                    "IMPORTANT: Training data IDs contain file extensions but submission format appears to need IDs without extensions"
+                )
+            elif not analysis_result["has_file_extensions"] and submission_analysis.get("submission_has_extensions") is True:
+                analysis_result["format_notes"].append(
+                    "IMPORTANT: Training data IDs do not contain extensions but submission format appears to need IDs with extensions"
+                )
+            elif analysis_result["has_file_extensions"] and submission_analysis.get("submission_has_extensions") is True:
+                analysis_result["format_notes"].append(
+                    "IMPORTANT: Training data IDs contain file extensions and submission format appears to need IDs with extensions"
+                )
+            elif not analysis_result["has_file_extensions"] and submission_analysis.get("submission_has_extensions") is False:
+                analysis_result["format_notes"].append(
+                    "IMPORTANT: Training data IDs do not contain extensions and submission format appears to need IDs without extensions"
+                )
+        
+        logger.info(f"ID format analysis completed. Found extensions: {analysis_result['detected_extensions']}")
+        return analysis_result
+
+    def _identify_id_columns(self, df: pd.DataFrame) -> List[str]:
+        """Identify potential ID columns in the dataframe."""
+        id_columns = []
+        
+        # Common ID column names
+        id_patterns = ['id', 'ID', 'Id', 'image_id', 'file_id', 'filename', 'file_name', 'image_name']
+        
+        for col in df.columns:
+            # Check exact matches
+            if col in id_patterns:
+                id_columns.append(col)
+                continue
+                
+            # Check partial matches
+            col_lower = col.lower()
+            if any(pattern.lower() in col_lower for pattern in ['id', 'filename', 'file_name', 'image']):
+                # Additional check: should have mostly unique values
+                if df[col].nunique() / len(df) > 0.8:  # More than 80% unique
+                    id_columns.append(col)
+        
+        # If no ID columns found by name, look for first column with high uniqueness
+        if not id_columns:
+            for col in df.columns:
+                if df[col].dtype == 'object' and df[col].nunique() / len(df) > 0.9:
+                    id_columns.append(col)
+                    break
+        
+        return id_columns
+
+    def _analyze_id_column(self, series: pd.Series, col_name: str, extension_pattern: str) -> Dict[str, Any]:
+        """Analyze a specific ID column for file extensions."""
+        sample_values = series.dropna().head(100).astype(str)
+        
+        # Find values with extensions
+        values_with_extensions = []
+        extensions_found = set()
+        
+        for value in sample_values:
+            match = re.search(extension_pattern, value, re.IGNORECASE)
+            if match:
+                values_with_extensions.append(value)
+                extensions_found.add('.' + match.group(1).lower())
+        
+        has_extensions = len(values_with_extensions) > 0
+        extension_ratio = len(values_with_extensions) / len(sample_values) if sample_values.any() else 0
+        
+        return {
+            "column_name": col_name,
+            "has_extensions": has_extensions,
+            "extensions_found": sorted(list(extensions_found)),
+            "extension_ratio": round(extension_ratio, 3),
+            "sample_with_extensions": values_with_extensions[:5],
+            "total_samples_checked": len(sample_values)
+        }
+
+    def _analyze_submission_format(self) -> Optional[Dict[str, Any]]:
+        """Analyze sample submission file format if available."""
+        # Look for common submission file names in input directory
+        input_path = Path(self.manager.input_data_folder)
+        submission_patterns = ['sample_submission.csv', 'submission.csv', 'sample_submit.csv', 'submit.csv']
+        
+        for pattern in submission_patterns:
+            submission_file = input_path / pattern
+            if submission_file.exists():
+                try:
+                    logger.info(f"Found submission file: {submission_file.name}")
+                    df = pd.read_csv(submission_file)
+                    
+                    # Analyze first few rows
+                    if len(df) > 0 and len(df.columns) > 0:
+                        first_col = df.columns[0]  # Assume first column is ID
+                        sample_ids = df[first_col].head(10).astype(str)
+                        
+                        # Check for extensions
+                        extension_pattern = r'\.(jpg|jpeg|png|gif|bmp|tiff|csv|txt|pdf|mp4|avi|wav|mp3)$'
+                        has_extensions = any(re.search(extension_pattern, str(id_val), re.IGNORECASE) for id_val in sample_ids)
+                        
+                        return {
+                            "submission_file": str(submission_file),
+                            "submission_has_extensions": has_extensions,
+                            "first_column_name": first_col,
+                            "sample_ids": sample_ids.tolist()[:3],
+                            "total_rows": len(df)
+                        }
+                except Exception as e:
+                    logger.warning(f"Failed to analyze submission file {submission_file}: {e}")
+        
+        return None
