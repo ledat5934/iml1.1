@@ -98,7 +98,8 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
         "model_selection": ["model_name1"](pretrained model name if using pretrained model),
         "eval_metrics": [],
         "random_state": 42,
-        "notes": "additional notes"
+        "notes": "additional notes",
+        "IDs in submission file contain file extensions": "true/false"
     }},
     "preprocessing": {{
         "data_cleaning": ["specific step 1", "specific step 2"],
@@ -107,6 +108,7 @@ IMPORTANT: Ensure the generated JSON is perfectly valid.
         "feature_selection": ["method 1", "method 2"],
         "data_splitting": {{"train": 0.8, "val": 0.2, "strategy": "simple_random", "random_state": 42}},
         "notes": "additional notes"
+        "IDs in train file contain file extensions": "true/false"
     }},
     "evaluation": {{
         "metrics": ["metric 1", "metric 2"],
